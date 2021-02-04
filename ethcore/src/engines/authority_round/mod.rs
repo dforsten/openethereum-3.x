@@ -42,7 +42,7 @@ use engines::{
     ConstructedVerifier, Engine, EngineError, Seal,
 };
 use error::{BlockError, Error, ErrorKind};
-use ethereum_types::{Address, H256, H520, U128, U256};
+use ethereum_types::{Address, H256, H512, H520, U128, U256};
 use ethjson;
 use ethkey::{self, Signature};
 use hash::keccak;
@@ -1159,7 +1159,7 @@ impl Engine<EthereumMachine> for AuthorityRound {
         Some(self.signer.read().is_some())
     }
 
-    fn handle_message(&self, rlp: &[u8]) -> Result<(), EngineError> {
+    fn handle_message(&self, rlp: &[u8], _node_id: Option<H512>) -> Result<(), EngineError> {
         fn fmt_err<T: ::std::fmt::Debug>(x: T) -> EngineError {
             EngineError::MalformedMessage(format!("{:?}", x))
         }

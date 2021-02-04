@@ -16,7 +16,7 @@
 
 use blockchain::ImportRoute;
 use bytes::Bytes;
-use ethereum_types::{H256, U256};
+use ethereum_types::{H256, H512, U256};
 use std::{collections::HashMap, time::Duration};
 use types::transaction::UnverifiedTransaction;
 
@@ -181,6 +181,11 @@ pub trait ChainNotify: Send + Sync {
 
     /// fires when chain broadcasts a message
     fn broadcast(&self, _message_type: ChainMessageType) {
+        // does nothing by default
+    }
+
+    /// fires when chain sends a message to a specific peer
+    fn send(&self, _message_type: ChainMessageType, _node_id: Option<H512>) {
         // does nothing by default
     }
 

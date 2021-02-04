@@ -331,7 +331,7 @@ impl<C: FlushingBlockChainClient> Peer for EthPeer<C> {
             &self.queue,
             Some(from),
         );
-        SyncSupplier::dispatch_packet(&self.sync, &mut io, from, msg.packet_id, &msg.data);
+        SyncSupplier::dispatch_packet(&self.sync, &mut io, from, msg.packet_id, &msg.data, None);
         self.chain.flush();
         io.to_disconnect.clone()
     }

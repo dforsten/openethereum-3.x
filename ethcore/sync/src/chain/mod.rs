@@ -104,7 +104,7 @@ use ethcore::{
     client::{BlockChainClient, BlockChainInfo, BlockId, BlockQueueInfo, BlockStatus},
     snapshot::RestorationStatus,
 };
-use ethereum_types::{H256, U256};
+use ethereum_types::{H256, H512, U256};
 use fastmap::{H256FastMap, H256FastSet};
 use hash::keccak;
 use network::{self, client_version::ClientVersion, PeerId};
@@ -445,8 +445,8 @@ impl ChainSyncApi {
     }
 
     /// Dispatch incoming requests and responses
-    pub fn dispatch_packet(&self, io: &mut dyn SyncIo, peer: PeerId, packet_id: u8, data: &[u8]) {
-        SyncSupplier::dispatch_packet(&self.sync, io, peer, packet_id, data)
+    pub fn dispatch_packet(&self, io: &mut dyn SyncIo, peer: PeerId, packet_id: u8, data: &[u8], node_id: Option<H512>) {
+        SyncSupplier::dispatch_packet(&self.sync, io, peer, packet_id, data, node_id)
     }
 
     /// Process the queue with requests, that were delayed with response.
@@ -1497,6 +1497,11 @@ impl ChainSync {
     /// Broadcast consensus message to peers.
     pub fn propagate_consensus_packet(&mut self, io: &mut dyn SyncIo, packet: Bytes) {
         SyncPropagator::propagate_consensus_packet(self, io, packet);
+    }
+
+    /// Send consensus message to a specific peer.
+    pub fn send_consensus_packet(&mut self, io: &mut dyn SyncIo, packet: Bytes, peer_id: usize) {
+        SyncPropagator::send_consensus_packet(self, io, packet, peer_id);
     }
 }
 
