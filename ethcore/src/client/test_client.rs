@@ -1125,6 +1125,10 @@ impl super::traits::EngineClient for TestBlockChainClient {
     fn block_header(&self, id: BlockId) -> Option<encoded::Header> {
         BlockChainClient::block_header(self, id)
     }
+
+    fn queued_transactions(&self) -> Vec<Arc<VerifiedTransaction>> {
+        self.miner.queued_transactions()
+    }
 }
 
 impl PrometheusMetrics for TestBlockChainClient {
