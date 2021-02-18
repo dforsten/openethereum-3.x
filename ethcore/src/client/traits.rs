@@ -22,7 +22,7 @@ use blockchain::{BlockReceipts, TreeRoute};
 use bytes::Bytes;
 use call_contract::{CallContract, RegistryInfo};
 use ethcore_miner::pool::VerifiedTransaction;
-use ethereum_types::{Address, H256, U256};
+use ethereum_types::{Address, H256, H512, U256};
 use evm::Schedule;
 use itertools::Itertools;
 use kvdb::DBValue;
@@ -221,7 +221,7 @@ pub trait IoClient: Sync + Send {
     ) -> EthcoreResult<H256>;
 
     /// Queue conensus engine message.
-    fn queue_consensus_message(&self, message: Bytes);
+    fn queue_consensus_message(&self, message: Bytes, node_id: Option<H512>);
 }
 
 /// Provides recently seen bad blocks.
@@ -494,6 +494,9 @@ pub trait EngineClient: Sync + Send + ChainInfo {
 
     /// Broadcast a consensus message to the network.
     fn broadcast_consensus_message(&self, message: Bytes);
+
+    /// Send a consensus message to the specified peer
+    fn send_consensus_message(&self, message: Bytes, node_id: Option<H512>);
 
     /// Get the transition to the epoch the given parent hash is part of
     /// or transitions to.

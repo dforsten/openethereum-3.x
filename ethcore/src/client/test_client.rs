@@ -28,7 +28,7 @@ use blockchain::{BlockReceipts, TreeRoute};
 use bytes::Bytes;
 use db::{COL_STATE, NUM_COLUMNS};
 use ethcore_miner::pool::VerifiedTransaction;
-use ethereum_types::{Address, H256, U256};
+use ethereum_types::{Address, H256, H512, U256};
 use ethkey::{Generator, Random};
 use ethtrie;
 use hash::keccak;
@@ -1070,8 +1070,8 @@ impl IoClient for TestBlockChainClient {
         self.import_block(unverified)
     }
 
-    fn queue_consensus_message(&self, message: Bytes) {
-        self.spec.engine.handle_message(&message).unwrap();
+    fn queue_consensus_message(&self, message: Bytes, node_id: Option<H512>) {
+        self.spec.engine.handle_message(&message, node_id).unwrap();
     }
 }
 
@@ -1109,6 +1109,10 @@ impl super::traits::EngineClient for TestBlockChainClient {
     }
 
     fn broadcast_consensus_message(&self, _message: Bytes) {}
+
+    fn send_consensus_message(&self, _message: Bytes, _node_id: Option<H512>) {
+        // TODO: allow test to intercept the message to relay it to other test clients
+    }
 
     fn epoch_transition_for(&self, _block_hash: H256) -> Option<::engines::EpochTransition> {
         None
