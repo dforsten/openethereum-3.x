@@ -1139,6 +1139,10 @@ impl super::traits::EngineClient for TestBlockChainClient {
         self.miner
             .create_pending_block_at(self, txns, timestamp, block_number)
     }
+
+    fn queued_transactions(&self) -> Vec<Arc<VerifiedTransaction>> {
+        self.miner.queued_transactions()
+    }
 }
 
 impl PrometheusMetrics for TestBlockChainClient {
