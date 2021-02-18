@@ -456,7 +456,6 @@ impl TypedTransaction {
     /// Legacy EIP-86 compatible empty signature.
     /// This method is used in json tests as well as
     /// signature verification tests.
-    #[cfg(any(test, feature = "test-helpers"))]
     pub fn null_sign(self, chain_id: u64) -> SignedTransaction {
         SignedTransaction {
             transaction: UnverifiedTransaction {
