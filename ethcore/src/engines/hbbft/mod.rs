@@ -1,14 +1,15 @@
-mod utils;
+mod contracts;
 mod hbbft_engine;
+mod utils;
 
 pub use self::hbbft_engine::HoneyBadgerBFT;
 
 #[cfg(test)]
 mod tests {
 
+    use super::utils::test_helpers::create_hbbft_client;
     use ethkey::{KeyPair, Secret};
     use std::str::FromStr;
-    use super::utils::test_helpers::create_hbbft_client;
 
     lazy_static! {
         static ref MASTER_OF_CEREMONIES_KEYPAIR: KeyPair = KeyPair::from_secret(
