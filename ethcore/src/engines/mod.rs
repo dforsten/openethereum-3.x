@@ -31,6 +31,7 @@ pub use self::{
     authority_round::AuthorityRound,
     basic_authority::BasicAuthority,
     clique::Clique,
+    hbbft::HoneyBadgerBFT,
     instant_seal::{InstantSeal, InstantSealParams},
     null_engine::NullEngine,
     signer::EngineSigner,

@@ -1,4 +1,7 @@
 mod utils;
+mod hbbft_engine;
+
+pub use self::hbbft_engine::HoneyBadgerBFT;
 
 #[cfg(test)]
 mod tests {
