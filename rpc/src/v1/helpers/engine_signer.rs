@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 use accounts::AccountProvider;
-use ethkey::{self, Address, Password};
+use ethkey::{self, Address, Password, Public};
 
 /// An implementation of EngineSigner using internal account management.
 pub struct EngineSigner {
@@ -50,5 +50,17 @@ impl ethcore::engines::EngineSigner for EngineSigner {
 
     fn address(&self) -> Address {
         self.address
+    }
+
+    fn decrypt(&self, auth_data: &[u8], cipher: &[u8]) -> Result<Vec<u8>, ethkey::Error> {
+        self.accounts
+            .decrypt(self.address, None, auth_data, cipher)
+            .map_err(|e| ethkey::Error::Custom(e.to_string()))
+    }
+
+    fn public(&self) -> Option<Public> {
+        self.accounts
+            .account_public(self.address, &self.password)
+            .ok()
     }
 }

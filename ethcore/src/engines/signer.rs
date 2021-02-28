@@ -17,7 +17,7 @@
 //! A signer used by Engines which need to sign messages.
 
 use ethereum_types::{Address, H256};
-use ethkey::{self, Signature};
+use ethkey::{self, crypto::ecies, Public, Signature};
 
 /// Everything that an Engine needs to sign messages.
 pub trait EngineSigner: Send + Sync {
@@ -26,6 +26,12 @@ pub trait EngineSigner: Send + Sync {
 
     /// Signing address
     fn address(&self) -> Address;
+
+    /// Decrypt a message that was encrypted to this signer's key.
+    fn decrypt(&self, auth_data: &[u8], cipher: &[u8]) -> Result<Vec<u8>, ethkey::Error>;
+
+    /// The signer's public key, if available.
+    fn public(&self) -> Option<Public>;
 }
 
 /// Creates a new `EngineSigner` from given key pair.
@@ -42,6 +48,19 @@ impl EngineSigner for Signer {
 
     fn address(&self) -> Address {
         self.0.address()
+    }
+
+    fn decrypt(&self, auth_data: &[u8], cipher: &[u8]) -> Result<Vec<u8>, ethkey::Error> {
+        ecies::decrypt(self.0.secret(), auth_data, cipher).map_err(|e| match e {
+            ethkey::crypto::Error::Secp(e) => ethkey::Error::InvalidSecret,
+            ethkey::crypto::Error::Io(e) => ethkey::Error::Io(e),
+            ethkey::crypto::Error::InvalidMessage => ethkey::Error::InvalidMessage,
+            ethkey::crypto::Error::Symm(_) => ethkey::Error::InvalidSecret,
+        })
+    }
+
+    fn public(&self) -> Option<Public> {
+        Some(*self.0.public())
     }
 }
 
@@ -74,6 +93,16 @@ mod test_signer {
 
         fn address(&self) -> Address {
             self.1
+        }
+
+        fn decrypt(&self, auth_data: &[u8], cipher: &[u8]) -> Result<Vec<u8>, ethkey::Error> {
+            self.0
+                .decrypt(self.1, Some(self.2.clone()), auth_data, cipher)
+                .map_err(|e| ethkey::Error::Custom(e.to_string()))
+        }
+
+        fn public(&self) -> Option<Public> {
+            self.0.account_public(self.1, &self.2).ok()
         }
     }
 }
