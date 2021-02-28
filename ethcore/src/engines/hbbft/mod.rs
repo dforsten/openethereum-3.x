@@ -3,6 +3,12 @@ mod hbbft_engine;
 mod utils;
 
 pub use self::hbbft_engine::HoneyBadgerBFT;
+use ethkey::Public;
+
+#[derive(
+    Clone, Copy, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize, Debug,
+)]
+pub struct NodeId(pub Public);
 
 #[cfg(test)]
 mod tests {
