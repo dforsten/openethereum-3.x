@@ -208,6 +208,12 @@ pub trait EngineInfo {
     fn engine(&self) -> &dyn EthEngine;
 }
 
+/// Provides information about the chain sync state.
+pub trait ChainSyncing: Send + Sync {
+    /// are we in the middle of a major sync?
+    fn is_major_syncing(&self, queue_info: BlockQueueInfo) -> bool;
+}
+
 /// IO operations that should off-load heavy work to another thread.
 pub trait IoClient: Sync + Send {
     /// Queue transactions for importing.
@@ -441,6 +447,9 @@ pub trait BlockChainClient:
         gas: U256,
         nonce: U256,
     ) -> Result<(), transaction::Error>;
+
+    /// Returns true if the chain is currently syncing.
+    fn is_major_syncing(&self) -> bool;
 }
 
 /// Provides `reopen_block` method

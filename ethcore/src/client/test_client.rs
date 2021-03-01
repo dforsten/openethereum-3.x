@@ -1080,6 +1080,10 @@ impl BlockChainClient for TestBlockChainClient {
         let signed = SignedTransaction::new(transaction.with_signature(sig, chain_id)).unwrap();
         self.miner.import_own_transaction(self, signed.into(), true)
     }
+
+    fn is_major_syncing(&self) -> bool {
+        false
+    }
 }
 
 impl IoClient for TestBlockChainClient {

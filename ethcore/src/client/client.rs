@@ -64,14 +64,14 @@ use ansi_term::Colour;
 use block::{enact_verified, ClosedBlock, Drain, LockedBlock, OpenBlock, SealedBlock};
 use call_contract::RegistryInfo;
 use client::{
-    ancient_import::AncientVerifier, bad_blocks, traits::ForceUpdateSealing, AccountData,
-    BadBlocks, Balance, BlockChain as BlockChainTrait, BlockChainClient, BlockChainReset, BlockId,
-    BlockInfo, BlockProducer, BroadcastProposalBlock, Call, CallAnalytics, ChainInfo,
-    ChainMessageType, ChainNotify, ChainRoute, ClientConfig, ClientIoMessage, EngineInfo,
-    ImportBlock, ImportExportBlocks, ImportSealedBlock, IoClient, Mode, NewBlocks, Nonce,
-    PrepareOpenBlock, ProvingBlockChainClient, PruningInfo, ReopenBlock, ScheduleInfo,
-    SealedBlockImporter, StateClient, StateInfo, StateOrBlock, TraceFilter, TraceId, TransactionId,
-    TransactionInfo, UncleId,
+    ancient_import::AncientVerifier, bad_blocks, traits::ChainSyncing, traits::ForceUpdateSealing,
+    AccountData, BadBlocks, Balance, BlockChain as BlockChainTrait, BlockChainClient,
+    BlockChainReset, BlockId, BlockInfo, BlockProducer, BroadcastProposalBlock, Call,
+    CallAnalytics, ChainInfo, ChainMessageType, ChainNotify, ChainRoute, ClientConfig,
+    ClientIoMessage, EngineInfo, ImportBlock, ImportExportBlocks, ImportSealedBlock, IoClient,
+    Mode, NewBlocks, Nonce, PrepareOpenBlock, ProvingBlockChainClient, PruningInfo, ReopenBlock,
+    ScheduleInfo, SealedBlockImporter, StateClient, StateInfo, StateOrBlock, TraceFilter, TraceId,
+    TransactionId, TransactionInfo, UncleId,
 };
 use engines::{
     epoch::PendingTransition, EngineError, EpochTransition, EthEngine, ForkChoice, MAX_UNCLE_AGE,
@@ -249,6 +249,9 @@ pub struct Client {
 
     /// A closure to call when we want to restart the client
     exit_handler: Mutex<Option<Box<dyn Fn(String) + 'static + Send>>>,
+
+    /// Accessor to query chain syncing state.
+    sync_provider: Mutex<Option<Box<dyn ChainSyncing>>>,
 
     importer: Importer,
 }
@@ -962,6 +965,7 @@ impl Client {
             on_user_defaults_change: Mutex::new(None),
             registrar_address,
             exit_handler: Mutex::new(None),
+            sync_provider: Mutex::new(None),
             importer,
             config,
         });
@@ -1028,6 +1032,11 @@ impl Client {
     /// Adds an actor to be notified on certain events
     pub fn add_notify(&self, target: Arc<dyn ChainNotify>) {
         self.notify.write().push(Arc::downgrade(&target));
+    }
+
+    /// Sets sync provider trait object to access chain sync state from the client/engine.
+    pub fn set_sync_provider(&self, sync_provider: Box<dyn ChainSyncing>) {
+        *self.sync_provider.lock() = Some(sync_provider);
     }
 
     /// Returns engine reference.
@@ -2649,6 +2658,15 @@ impl BlockChainClient for Client {
         self.importer
             .miner
             .import_own_transaction(self, signed.into(), true)
+    }
+
+    fn is_major_syncing(&self) -> bool {
+        match &*self.sync_provider.lock() {
+            Some(sync_provider) => sync_provider.is_major_syncing(self.queue_info()),
+            // We also indicate the "syncing" state when the SyncProvider has not been set,
+            // which usually only happens when the client is not fully configured yet.
+            None => true,
+        }
     }
 }
 

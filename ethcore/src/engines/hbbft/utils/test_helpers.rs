@@ -1,13 +1,13 @@
-use crate::client::Client;
-use crate::engines::signer::from_keypair;
-use crate::miner::Miner;
-use crate::test_helpers::generate_dummy_client_with_spec;
 use client::traits::Nonce;
+use client::{BlockQueueInfo, ChainSyncing, Client};
+use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
 use ethkey::KeyPair;
+use miner::Miner;
 use miner::MinerService;
 use spec::Spec;
 use std::sync::Arc;
+use test_helpers::generate_dummy_client_with_spec;
 use test_helpers::TestNotify;
 use types::ids::BlockId;
 use types::transaction::{Action, SignedTransaction, Transaction, TypedTransaction};
@@ -20,10 +20,17 @@ pub fn hbbft_spec() -> Spec {
     .expect(concat!("Chain spec is invalid."))
 }
 
+struct SyncProviderWrapper();
+impl ChainSyncing for SyncProviderWrapper {
+    fn is_major_syncing(&self, queue_info: BlockQueueInfo) -> bool {
+        false
+    }
+}
+
 pub fn hbbft_client() -> std::sync::Arc<Client> {
     let client = generate_dummy_client_with_spec(hbbft_spec);
     /// @todo Implement set_sync_provider function
-    //client.set_sync_provider(Box::new(SyncProviderWrapper()));
+    client.set_sync_provider(Box::new(SyncProviderWrapper()));
     client
 }
 

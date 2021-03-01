@@ -27,7 +27,10 @@ use cache::CacheConfig;
 use db;
 use dir::{DatabaseDirectories, Directories};
 use ethcore::{
-    client::{BlockChainClient, BlockInfo, Client, DatabaseCompactionProfile, Mode, VMType},
+    client::{
+        BlockChainClient, BlockInfo, BlockQueueInfo, ChainSyncing, Client,
+        DatabaseCompactionProfile, Mode, VMType,
+    },
     miner::{self, stratum, Miner, MinerOptions, MinerService},
     snapshot::{self, SnapshotConfiguration},
     verification::queue::VerifierSettings,
@@ -57,7 +60,7 @@ use rpc;
 use rpc_apis;
 use secretstore;
 use signer;
-use sync::{self, SyncConfig};
+use sync::{self, SyncConfig, SyncProvider};
 use user_defaults::UserDefaults;
 
 // how often to take periodic snapshots.
@@ -136,6 +139,19 @@ impl ::local_store::NodeInfo for FullNodeInfo {
                 _ => None,
             })
             .collect()
+    }
+}
+
+struct SyncProviderWrapper(Weak<dyn SyncProvider>);
+
+impl ChainSyncing for SyncProviderWrapper {
+    /// are we in the middle of a major sync?
+    fn is_major_syncing(&self, queue_info: BlockQueueInfo) -> bool {
+        match self.0.upgrade() {
+            Some(arc) => is_major_importing(Some(arc.status().state), queue_info),
+            // We also indicate the "syncing" state when the SyncProvider has already been destroyed.
+            None => true,
+        }
     }
 }
 
@@ -406,7 +422,7 @@ pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient
         match store.pending_transactions() {
             Ok(pending) => {
                 for pending_tx in pending {
-                    if let Err(e) = miner.import_own_transaction(&*client, pending_tx) {
+                    if let Err(e) = miner.import_own_transaction(&*client, pending_tx, false) {
                         warn!("Error importing saved transaction: {}", e)
                     }
                 }
@@ -577,6 +593,14 @@ pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient
             Some(watcher)
         }
     };
+
+    // Registering the sync provider as late as possible to use it as indicator that
+    // client startup has finished.
+    // This is essential to assure no block creation attempt happens before the client
+    // is fully configured.
+    client.set_sync_provider(Box::new(SyncProviderWrapper(Arc::downgrade(
+        &sync_provider,
+    ))));
 
     Ok(RunningClient {
         inner: RunningClientInner::Full {

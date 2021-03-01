@@ -38,10 +38,10 @@ pub use self::{
     io_message::ClientIoMessage,
     traits::{
         AccountData, BadBlocks, Balance, BlockChain, BlockChainClient, BlockChainReset, BlockInfo,
-        BlockProducer, BroadcastProposalBlock, Call, ChainInfo, EngineClient, EngineInfo,
-        ImportBlock, ImportExportBlocks, ImportSealedBlock, IoClient, Nonce, PrepareOpenBlock,
-        ProvingBlockChainClient, ReopenBlock, ScheduleInfo, SealedBlockImporter, StateClient,
-        StateOrBlock, TransactionInfo,
+        BlockProducer, BroadcastProposalBlock, Call, ChainInfo, ChainSyncing, EngineClient,
+        EngineInfo, ImportBlock, ImportExportBlocks, ImportSealedBlock, IoClient, Nonce,
+        PrepareOpenBlock, ProvingBlockChainClient, ReopenBlock, ScheduleInfo, SealedBlockImporter,
+        StateClient, StateOrBlock, TransactionInfo,
     },
 };
 pub use state::StateInfo;
