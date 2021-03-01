@@ -1,3 +1,4 @@
+mod block_reward_hbbft;
 mod contracts;
 mod hbbft_engine;
 mod utils;
