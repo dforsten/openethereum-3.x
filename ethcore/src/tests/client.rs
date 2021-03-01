@@ -389,11 +389,11 @@ fn does_not_propagate_delayed_transactions() {
 
     client
         .miner()
-        .import_own_transaction(&*client, tx0)
+        .import_own_transaction(&*client, tx0, false)
         .unwrap();
     client
         .miner()
-        .import_own_transaction(&*client, tx1)
+        .import_own_transaction(&*client, tx1, false)
         .unwrap();
     assert_eq!(0, client.transactions_to_propagate().len());
     assert_eq!(

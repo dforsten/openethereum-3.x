@@ -551,7 +551,7 @@ mod tests {
         .sign(&s0, Some(chain_id));
         client
             .miner()
-            .import_own_transaction(client.as_ref(), tx.into())
+            .import_own_transaction(client.as_ref(), tx.into(), false)
             .unwrap();
         EngineClient::update_sealing(&*client, ForceUpdateSealing::No);
         assert_eq!(client.chain_info().best_block_number, 1);
@@ -569,7 +569,7 @@ mod tests {
         .sign(&s0, Some(chain_id));
         client
             .miner()
-            .import_own_transaction(client.as_ref(), tx.into())
+            .import_own_transaction(client.as_ref(), tx.into(), false)
             .unwrap();
         EngineClient::update_sealing(&*client, ForceUpdateSealing::No);
         // The transaction is not yet included so still unable to seal.
@@ -594,7 +594,7 @@ mod tests {
         .sign(&s0, Some(chain_id));
         client
             .miner()
-            .import_own_transaction(client.as_ref(), tx.into())
+            .import_own_transaction(client.as_ref(), tx.into(), false)
             .unwrap();
         EngineClient::update_sealing(&*client, ForceUpdateSealing::No);
         // Able to seal again.

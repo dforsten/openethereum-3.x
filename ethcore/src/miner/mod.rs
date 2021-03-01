@@ -167,6 +167,7 @@ pub trait MinerService: Send + Sync {
         &self,
         chain: &C,
         transaction: PendingTransaction,
+        silently: bool,
     ) -> Result<(), transaction::Error>
     where
         C: BlockChainClient;

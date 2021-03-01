@@ -1048,11 +1048,37 @@ impl BlockChainClient for TestBlockChainClient {
             .sign(transaction.signature_hash(chain_id))
             .unwrap();
         let signed = SignedTransaction::new(transaction.with_signature(sig, chain_id)).unwrap();
-        self.miner.import_own_transaction(self, signed.into())
+        self.miner
+            .import_own_transaction(self, signed.into(), false)
     }
 
     fn registrar_address(&self) -> Option<Address> {
         None
+    }
+
+    fn transact_silently(
+        &self,
+        address: Address,
+        data: Bytes,
+        gas: U256,
+        nonce: U256,
+    ) -> Result<(), transaction::Error> {
+        let transaction = TypedTransaction::Legacy(Transaction {
+            nonce,
+            action: Action::Call(address),
+            gas,
+            gas_price: U256::zero(),
+            value: U256::default(),
+            data: data,
+        });
+        let chain_id = Some(self.spec.chain_id());
+        let sig = self
+            .spec
+            .engine
+            .sign(transaction.signature_hash(chain_id))
+            .unwrap();
+        let signed = SignedTransaction::new(transaction.with_signature(sig, chain_id)).unwrap();
+        self.miner.import_own_transaction(self, signed.into(), true)
     }
 }
 

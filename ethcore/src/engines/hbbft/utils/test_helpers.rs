@@ -59,7 +59,7 @@ impl HbbftTestClient {
         let transaction = create_transfer(&self.keypair, receiver, amount, &self.nonce);
         self.nonce += U256::from(1);
         self.miner
-            .import_own_transaction(self.client.as_ref(), transaction.into())
+            .import_own_transaction(self.client.as_ref(), transaction.into(), false)
             .unwrap();
     }
 

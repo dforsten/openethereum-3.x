@@ -432,6 +432,15 @@ pub trait BlockChainClient:
 
     /// Returns true, if underlying import queue is processing possible fork at the moment
     fn is_processing_fork(&self) -> bool;
+
+    /// Schedule state-altering transaction to be executed on the next pending block.
+    fn transact_silently(
+        &self,
+        address: Address,
+        data: Bytes,
+        gas: U256,
+        nonce: U256,
+    ) -> Result<(), transaction::Error>;
 }
 
 /// Provides `reopen_block` method
@@ -515,7 +524,12 @@ pub trait EngineClient: Sync + Send + ChainInfo {
     fn block_header(&self, id: BlockId) -> Option<encoded::Header>;
 
     /// Create block and queue it for sealing. Will return None if a block is already pending.
-    fn create_pending_block_at(&self, txns: Vec<SignedTransaction>, timestamp: u64, block_number: u64) -> Option<Header>;
+    fn create_pending_block_at(
+        &self,
+        txns: Vec<SignedTransaction>,
+        timestamp: u64,
+        block_number: u64,
+    ) -> Option<Header>;
 
     /// Get currently pending transactions
     fn queued_transactions(&self) -> Vec<Arc<VerifiedTransaction>>;

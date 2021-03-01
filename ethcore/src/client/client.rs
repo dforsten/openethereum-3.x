@@ -35,7 +35,7 @@ use bytes::{Bytes, ToPretty};
 use call_contract::CallContract;
 use error::Error;
 use ethcore_miner::pool::VerifiedTransaction;
-use ethereum_types::{Address, H256, H512, H264, U256};
+use ethereum_types::{Address, H256, H264, H512, U256};
 use hash::keccak;
 use itertools::Itertools;
 use kvdb::{DBTransaction, DBValue, KeyValueDB};
@@ -2608,11 +2608,47 @@ impl BlockChainClient for Client {
         let signed = SignedTransaction::new(transaction.with_signature(signature, chain_id))?;
         self.importer
             .miner
-            .import_own_transaction(self, signed.into())
+            .import_own_transaction(self, signed.into(), false)
     }
 
     fn registrar_address(&self) -> Option<Address> {
         self.registrar_address.clone()
+    }
+
+    fn transact_silently(
+        &self,
+        address: Address,
+        data: Bytes,
+        gas: U256,
+        nonce: U256,
+    ) -> Result<(), transaction::Error> {
+        let authoring_params = self.importer.miner.authoring_params();
+        let service_transaction_checker = self.importer.miner.service_transaction_checker();
+        let gas_price = if let Some(checker) = service_transaction_checker {
+            match checker.check_address(self, authoring_params.author) {
+                Ok(true) => U256::zero(),
+                _ => self.importer.miner.sensible_gas_price(),
+            }
+        } else {
+            self.importer.miner.sensible_gas_price()
+        };
+        let transaction = TypedTransaction::Legacy(transaction::Transaction {
+            nonce,
+            action: Action::Call(address),
+            gas,
+            gas_price,
+            value: U256::zero(),
+            data: data,
+        });
+        let chain_id = self.engine.signing_chain_id(&self.latest_env_info());
+        let signature = self
+            .engine
+            .sign(transaction.signature_hash(chain_id))
+            .map_err(|e| transaction::Error::InvalidSignature(e.to_string()))?;
+        let signed = SignedTransaction::new(transaction.with_signature(signature, chain_id))?;
+        self.importer
+            .miner
+            .import_own_transaction(self, signed.into(), true)
     }
 }
 
@@ -2958,8 +2994,15 @@ impl super::traits::EngineClient for Client {
         BlockChainClient::block_header(self, id)
     }
 
-    fn create_pending_block_at(&self, txns: Vec<SignedTransaction>, timestamp: u64, block_number: u64) -> Option<Header> {
-        self.importer.miner.create_pending_block_at(self, txns, timestamp, block_number)
+    fn create_pending_block_at(
+        &self,
+        txns: Vec<SignedTransaction>,
+        timestamp: u64,
+        block_number: u64,
+    ) -> Option<Header> {
+        self.importer
+            .miner
+            .create_pending_block_at(self, txns, timestamp, block_number)
     }
 
     fn queued_transactions(&self) -> Vec<Arc<VerifiedTransaction>> {
