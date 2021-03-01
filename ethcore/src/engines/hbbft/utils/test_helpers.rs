@@ -95,6 +95,18 @@ impl HbbftTestClient {
     }
 }
 
+pub fn create_transaction(keypair: &KeyPair, nonce: &U256) -> SignedTransaction {
+    TypedTransaction::Legacy(Transaction {
+        action: Action::Call(Address::from(5798439875u64)),
+        value: U256::zero(),
+        data: vec![],
+        gas: U256::from(100_000),
+        gas_price: "10000000000".into(),
+        nonce: *nonce,
+    })
+    .sign(keypair.secret(), None)
+}
+
 pub fn create_transfer(
     keypair: &KeyPair,
     receiver: &Address,
