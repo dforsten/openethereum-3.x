@@ -450,6 +450,9 @@ pub trait BlockChainClient:
 
     /// Returns true if the chain is currently syncing.
     fn is_major_syncing(&self) -> bool;
+
+    /// Returns the next nonce for the given address, taking the transaction queue into account.
+    fn next_nonce(&self, address: &Address) -> U256;
 }
 
 /// Provides `reopen_block` method
