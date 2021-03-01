@@ -1,4 +1,5 @@
 use client::EngineClient;
+use engines::hbbft::contracts::staking::get_posdao_epoch;
 use engines::hbbft::contracts::validator_set::{get_validator_pubkeys, ValidatorType};
 use engines::hbbft::utils::bound_contract::{BoundContract, CallError};
 use engines::hbbft::NodeId;
@@ -218,4 +219,99 @@ pub fn initialize_synckeygen(
     }
 
     Ok(synckeygen)
+}
+
+/// Returns a collection of transactions the pending validator has to submit in order to
+/// complete the keygen history contract data necessary to generate the next key and switch to the new validator set.
+pub fn send_keygen_transactions(
+    client: &dyn EngineClient,
+    signer: &Arc<RwLock<Option<Box<dyn EngineSigner>>>>,
+) -> Result<(), CallError> {
+    // If we have no signer there is nothing for us to send.
+    let address = match signer.read().as_ref() {
+        Some(signer) => signer.address(),
+        None => return Err(CallError::ReturnValueInvalid),
+    };
+
+    let full_client = client.as_full_client().ok_or(CallError::NotFullClient)?;
+
+    // If the chain is still syncing, do not send Parts or Acks.
+    if full_client.is_major_syncing() {
+        return Ok(());
+    }
+
+    let vmap = get_validator_pubkeys(&*client, BlockId::Latest, ValidatorType::Pending)?;
+    let pub_keys: BTreeMap<_, _> = vmap
+        .values()
+        .map(|p| (*p, PublicWrapper { inner: p.clone() }))
+        .collect();
+
+    // if synckeygen creation fails then either signer or validator pub keys are problematic.
+    // Todo: We should expect up to f clients to write invalid pub keys. Report and re-start pending validator set selection.
+    let (mut synckeygen, part) = engine_signer_to_synckeygen(signer, Arc::new(pub_keys))
+        .map_err(|_| CallError::ReturnValueInvalid)?;
+
+    // If there is no part then we are not part of the pending validator set and there is nothing for us to do.
+    let part_data = match part {
+        Some(part) => part,
+        None => return Err(CallError::ReturnValueInvalid),
+    };
+
+    let upcoming_epoch = get_posdao_epoch(client, BlockId::Latest)? + 1;
+
+    // Check if we already sent our part.
+    if !has_part_of_address_data(client, address)? {
+        let serialized_part = match bincode::serialize(&part_data) {
+            Ok(part) => part,
+            Err(_) => return Err(CallError::ReturnValueInvalid),
+        };
+
+        let write_part_data =
+            key_history_contract::functions::write_part::call(upcoming_epoch, serialized_part);
+
+        full_client
+            .transact_silently(
+                *KEYGEN_HISTORY_ADDRESS,
+                write_part_data.0,
+                U256::from(7_000_000),
+                full_client.next_nonce(&address),
+            )
+            .map_err(|_| CallError::ReturnValueInvalid)?;
+    }
+
+    // Return if any Part is missing.
+    let mut acks = Vec::new();
+    for v in vmap.keys().sorted() {
+        acks.push(
+            match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest)? {
+                Some(ack) => ack,
+                None => return Err(CallError::ReturnValueInvalid),
+            },
+        );
+    }
+
+    // Now we are sure all parts are ready, let's check if we sent our Acks.
+    if !has_acks_of_address_data(client, address)? {
+        let mut serialized_acks = Vec::new();
+        for ack in acks {
+            serialized_acks.push(match bincode::serialize(&ack) {
+                Ok(serialized_ack) => serialized_ack,
+                Err(_) => return Err(CallError::ReturnValueInvalid),
+            })
+        }
+
+        let write_acks_data =
+            key_history_contract::functions::write_acks::call(upcoming_epoch, serialized_acks);
+
+        full_client
+            .transact_silently(
+                *KEYGEN_HISTORY_ADDRESS,
+                write_acks_data.0,
+                U256::from(7_000_000),
+                full_client.next_nonce(&address),
+            )
+            .map_err(|_| CallError::ReturnValueInvalid)?;
+    }
+
+    Ok(())
 }
