@@ -1,5 +1,7 @@
+use block::ExecutedBlock;
 use client::traits::ForceUpdateSealing;
 use client::EngineClient;
+use engines::hbbft::block_reward_hbbft::BlockRewardContract;
 use engines::hbbft::contracts::keygen_history::{initialize_synckeygen, send_keygen_transactions};
 use engines::hbbft::contracts::staking::start_time_of_next_phase_transition;
 use engines::hbbft::contracts::validator_set::{
@@ -10,10 +12,11 @@ use engines::hbbft::hbbft_state::{Batch, HbMessage, HbbftState, HoneyBadgerStep}
 use engines::hbbft::sealing::{self, RlpSig, Sealing};
 use engines::hbbft::NodeId;
 use engines::signer::EngineSigner;
-use engines::{Engine, EngineError, ForkChoice};
-use error::Error;
-use ethereum_types::{Address, H512, U256};
+use engines::{default_system_or_code_call, Engine, EngineError, ForkChoice, Seal};
+use error::{BlockError, Error};
+use ethereum_types::{Address, H256, H512, U256};
 use ethjson::spec::hbbft::HbbftParams;
+use ethkey::Signature;
 use hbbft::{NetworkInfo, Target};
 use io::{IoContext, IoHandler, IoService, TimerToken};
 use itertools::Itertools;
@@ -578,14 +581,193 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
     fn name(&self) -> &str {
         "HoneyBadgerBFT"
     }
+
     fn machine(&self) -> &EthereumMachine {
         &self.machine
     }
+
     fn verify_local_seal(&self, _header: &Header) -> Result<(), Error> {
+        self.check_for_epoch_change();
         Ok(())
     }
+
     fn fork_choice(&self, new: &ExtendedHeader, best: &ExtendedHeader) -> ForkChoice {
         // Forks should never, ever happen with HBBFT.
         ForkChoice::New
+    }
+    /// Phase 1 Checks
+    fn verify_block_basic(&self, _header: &Header) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Pase 2 Checks
+    fn verify_block_unordered(&self, _header: &Header) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Phase 3 Checks
+    /// We check the signature here since at this point the blocks are imported in-order.
+    /// To verify the signature we need the parent block already imported on the chain.
+    fn verify_block_family(&self, header: &Header, _parent: &Header) -> Result<(), Error> {
+        let client = self.client_arc().ok_or(EngineError::RequiresClient)?;
+
+        let latest_block_nr = client.block_number(BlockId::Latest).expect("must succeed");
+
+        if header.number() > (latest_block_nr + 1) {
+            error!(target: "engine", "Phase 3 block verification out of order!");
+            return Err(BlockError::InvalidSeal.into());
+        }
+
+        if header.seal().len() != 1 {
+            return Err(BlockError::InvalidSeal.into());
+        }
+
+        let RlpSig(sig) = rlp::decode(header.seal().first().ok_or(BlockError::InvalidSeal)?)?;
+        if self
+            .hbbft_state
+            .write()
+            .verify_seal(client, &self.signer, &sig, header)
+        {
+            Ok(())
+        } else {
+            error!(target: "engine", "Invalid seal for block #{}!", header.number());
+            Err(BlockError::InvalidSeal.into())
+        }
+    }
+
+    // Phase 4
+    fn verify_block_external(&self, _header: &Header) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn register_client(&self, client: Weak<dyn EngineClient>) {
+        *self.client.write() = Some(client.clone());
+        if let Some(client) = self.client_arc() {
+            if let None = self.hbbft_state.write().update_honeybadger(
+                client,
+                &self.signer,
+                BlockId::Latest,
+                true,
+            ) {
+                // As long as the client is set we should be able to initialize as a regular node.
+                error!(target: "engine", "Error during HoneyBadger initialization!");
+            }
+        }
+    }
+
+    fn set_signer(&self, signer: Box<dyn EngineSigner>) {
+        *self.signer.write() = Some(signer);
+        if let Some(client) = self.client_arc() {
+            if let None = self.hbbft_state.write().update_honeybadger(
+                client,
+                &self.signer,
+                BlockId::Latest,
+                true,
+            ) {
+                info!(target: "engine", "HoneyBadger Algorithm could not be created, Client possibly not set yet.");
+            }
+        }
+    }
+
+    fn sign(&self, hash: H256) -> Result<Signature, Error> {
+        match self.signer.read().as_ref() {
+            Some(signer) => signer
+                .sign(hash)
+                .map_err(|_| EngineError::RequiresSigner.into()),
+            None => Err(EngineError::RequiresSigner.into()),
+        }
+    }
+
+    fn seals_internally(&self) -> Option<bool> {
+        // Purge obsolete sealing processes.
+        let client = match self.client_arc() {
+            None => return Some(false),
+            Some(client) => client,
+        };
+        let next_block = match client.block_number(BlockId::Latest) {
+            None => return Some(false),
+            Some(block_num) => block_num + 1,
+        };
+        let mut sealing = self.sealing.write();
+        *sealing = sealing.split_off(&next_block);
+
+        // We are ready to seal if we have a valid signature for the next block.
+        if let Some(next_seal) = sealing.get(&next_block) {
+            if next_seal.signature().is_some() {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+
+    fn on_transactions_imported(&self) {
+        self.check_for_epoch_change();
+        if let Some(client) = self.client_arc() {
+            if self.transaction_queue_and_time_thresholds_reached(&client) {
+                self.start_hbbft_epoch(client);
+            }
+        }
+    }
+
+    fn handle_message(&self, message: &[u8], node_id: Option<H512>) -> Result<(), EngineError> {
+        self.check_for_epoch_change();
+        let node_id = NodeId(node_id.ok_or(EngineError::UnexpectedMessage)?);
+        match serde_json::from_slice(message) {
+            Ok(Message::HoneyBadger(msg_idx, hb_msg)) => {
+                self.process_hb_message(msg_idx, hb_msg, node_id)
+            }
+            Ok(Message::Sealing(block_num, seal_msg)) => {
+                self.process_sealing_message(seal_msg, node_id, block_num)
+            }
+            Err(_) => Err(EngineError::MalformedMessage(
+                "Serde message decoding failed.".into(),
+            )),
+        }
+    }
+
+    fn seal_fields(&self, _header: &Header) -> usize {
+        1
+    }
+
+    fn generate_seal(&self, block: &ExecutedBlock, _parent: &Header) -> Seal {
+        let client = match self.client_arc() {
+            None => return Seal::None,
+            Some(client) => client,
+        };
+
+        let block_num = block.header.number();
+        let sealing = self.sealing.read();
+        let sig = match sealing.get(&block_num).and_then(Sealing::signature) {
+            None => return Seal::None,
+            Some(sig) => sig,
+        };
+        if !self
+            .hbbft_state
+            .write()
+            .verify_seal(client, &self.signer, &sig, &block.header)
+        {
+            error!(target: "consensus", "generate_seal: Threshold signature does not match new block.");
+            return Seal::None;
+        }
+        trace!(target: "consensus", "Returning generated seal for block {}.", block_num);
+        Seal::Regular(vec![rlp::encode(&RlpSig(sig))])
+    }
+
+    fn should_miner_prepare_blocks(&self) -> bool {
+        false
+    }
+
+    fn use_block_author(&self) -> bool {
+        false
+    }
+
+    fn on_close_block(&self, block: &mut ExecutedBlock) -> Result<(), Error> {
+        self.check_for_epoch_change();
+        if let Some(address) = self.params.block_reward_contract_address {
+            let mut call = default_system_or_code_call(&self.machine, block);
+            let contract = BlockRewardContract::new_from_address(address);
+            let _total_reward = contract.reward(&mut call, self.do_keygen())?;
+        }
+        Ok(())
     }
 }
