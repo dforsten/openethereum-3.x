@@ -36,6 +36,7 @@ extern crate ethkey;
 extern crate hash_db;
 extern crate hbbft;
 extern crate heapsize;
+extern crate hex_fmt;
 extern crate itertools;
 extern crate journaldb;
 extern crate keccak_hash as hash;
