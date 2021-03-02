@@ -22,6 +22,7 @@ use ethkey::{self, public_to_address, recover, Public, Secret, Signature};
 use hash::keccak;
 use heapsize::HeapSizeOf;
 use rlp::{self, DecoderError, Rlp, RlpStream};
+use std::hash::{Hash, Hasher};
 use std::{convert::TryInto, ops::Deref};
 
 pub type AccessList = Vec<(H160, Vec<H256>)>;
@@ -698,6 +699,12 @@ impl Deref for UnverifiedTransaction {
 
     fn deref(&self) -> &Self::Target {
         &self.unsigned
+    }
+}
+
+impl Hash for UnverifiedTransaction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.hash.0);
     }
 }
 
