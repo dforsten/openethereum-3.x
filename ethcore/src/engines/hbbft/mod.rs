@@ -31,9 +31,13 @@ mod tests {
     use super::utils::test_helpers::create_hbbft_client;
     use client::traits::BlockInfo;
     use engines::hbbft::contracts::staking::tests::{create_staker, is_pool_active};
+    use engines::hbbft::contracts::staking::{
+        get_posdao_epoch, start_time_of_next_phase_transition,
+    };
     use engines::hbbft::contracts::validator_set::{
         is_pending_validator, mining_by_staking_address,
     };
+    use engines::hbbft::contribution::unix_now_secs;
     use ethereum_types::{Address, U256};
     use ethkey::{Generator, KeyPair, Random, Secret};
     use std::str::FromStr;
@@ -130,5 +134,70 @@ mod tests {
                 .expect("Pool active query must succeed."),
             true
         );
+    }
+
+    #[test]
+    fn test_epoch_transition() {
+        // Create Master of Ceremonies
+        let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
+        // To avoid performing external transactions with the MoC we create and fund a random address.
+        let transactor: KeyPair = Random.generate().expect("KeyPair generation must succeed.");
+
+        let genesis_transition_time = start_time_of_next_phase_transition(moc.client.as_ref())
+            .expect("Constant call must succeed");
+
+        // Genesis block is at time 0, current unix time must be much larger.
+        assert!(genesis_transition_time.as_u64() < unix_now_secs());
+
+        // We should not be in the pending validator set at the genesis block.
+        assert!(!is_pending_validator(moc.client.as_ref(), &moc.address())
+            .expect("Constant call must succeed"));
+
+        // Fund the transactor.
+        // Also triggers the creation of a block.
+        // This implicitly calls the block reward contract, which should trigger a phase transition
+        // since we already verified that the genesis transition time threshold has been reached.
+        let transaction_funds = U256::from(9000000000000000000u64);
+        moc.transfer_to(&transactor.address(), &transaction_funds);
+
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 1);
+
+        // Now we should be part of the pending validator set.
+        assert!(is_pending_validator(moc.client.as_ref(), &moc.address())
+            .expect("Constant call must succeed"));
+
+        // Check if we are still in the first epoch.
+        assert_eq!(
+            get_posdao_epoch(moc.client.as_ref(), BlockId::Latest)
+                .expect("Constant call must succeed"),
+            U256::from(0)
+        );
+
+        // First the validator realizes it is in the next validator set and sends his part.
+        moc.create_some_transaction(Some(&transactor));
+
+        // The part will be included in the block triggered by this transaction, but not part of the global state yet,
+        // so it sends the transaction another time.
+        moc.create_some_transaction(Some(&transactor));
+
+        // Now the part is part of the global chain state, and we send our acks.
+        moc.create_some_transaction(Some(&transactor));
+
+        // The acks will be included in the block triggered by this transaction, but not part of the global state yet.
+        moc.create_some_transaction(Some(&transactor));
+
+        // Now the acks are part of the global block state, and the key generation is complete and the next epoch begins
+        moc.create_some_transaction(Some(&transactor));
+
+        // At this point we should be in the new epoch.
+        assert_eq!(
+            get_posdao_epoch(moc.client.as_ref(), BlockId::Latest)
+                .expect("Constant call must succeed"),
+            U256::from(1)
+        );
+
+        // Let's do another one to check if the transition to the new honey badger and keys works.
+        moc.create_some_transaction(Some(&transactor));
     }
 }
