@@ -460,6 +460,13 @@ impl Miner {
             {
                 Some(old_block) => {
                     trace!(target: "miner", "prepare_block: Already have previous work; updating and returning");
+
+                    // do not attempt to add new transaction to an already existing block if
+                    // if the miner should not prepare blocks.
+                    if !self.engine.should_miner_prepare_blocks() {
+                        return Some((old_block, last_work_hash))
+                    }
+
                     // add transactions to old_block
                     chain.reopen_block(old_block)
                 }
