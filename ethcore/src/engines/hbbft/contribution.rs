@@ -1,5 +1,4 @@
 use rand_065::{self, distributions::Standard, Rng};
-use rlp::Encodable;
 use rlp::RlpStream;
 use std::time::UNIX_EPOCH;
 use types::transaction::SignedTransaction;
@@ -61,7 +60,6 @@ mod tests {
     use engines::hbbft::utils::test_helpers::create_transaction;
     use ethereum_types::U256;
     use ethkey::{Generator, Random};
-    use rlp::{Decodable, Rlp};
     use types::transaction::{SignedTransaction, TypedTransaction};
 
     #[test]

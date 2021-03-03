@@ -52,7 +52,7 @@ impl EngineSigner for Signer {
 
     fn decrypt(&self, auth_data: &[u8], cipher: &[u8]) -> Result<Vec<u8>, ethkey::Error> {
         ecies::decrypt(self.0.secret(), auth_data, cipher).map_err(|e| match e {
-            ethkey::crypto::Error::Secp(e) => ethkey::Error::InvalidSecret,
+            ethkey::crypto::Error::Secp(_) => ethkey::Error::InvalidSecret,
             ethkey::crypto::Error::Io(e) => ethkey::Error::Io(e),
             ethkey::crypto::Error::InvalidMessage => ethkey::Error::InvalidMessage,
             ethkey::crypto::Error::Symm(_) => ethkey::Error::InvalidSecret,

@@ -19,7 +19,6 @@
 //! Ethcore library
 
 extern crate ansi_term;
-extern crate bincode;
 extern crate common_types as types;
 extern crate crossbeam_utils;
 extern crate ethabi;
@@ -36,7 +35,6 @@ extern crate ethkey;
 extern crate hash_db;
 extern crate hbbft;
 extern crate heapsize;
-extern crate hex_fmt;
 extern crate itertools;
 extern crate journaldb;
 extern crate keccak_hash as hash;

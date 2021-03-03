@@ -115,7 +115,7 @@ mod tests {
         assert_eq!(moc.client.chain().best_block_number(), 3);
 
         // Expect one transaction in the block.
-        let block = moc
+        let _block = moc
             .client
             .block(BlockId::Number(3))
             .expect("Block must exist");

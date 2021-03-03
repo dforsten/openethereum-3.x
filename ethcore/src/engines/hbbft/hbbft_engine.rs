@@ -14,7 +14,7 @@ use engines::hbbft::NodeId;
 use engines::signer::EngineSigner;
 use engines::{default_system_or_code_call, Engine, EngineError, ForkChoice, Seal};
 use error::{BlockError, Error};
-use ethereum_types::{Address, H256, H512, U256};
+use ethereum_types::{H256, H512, U256};
 use ethjson::spec::hbbft::HbbftParams;
 use ethkey::Signature;
 use hbbft::{NetworkInfo, Target};
@@ -44,6 +44,7 @@ enum Message {
     Sealing(BlockNumber, sealing::Message),
 }
 
+/// Hbbft Engine implementation
 pub struct HoneyBadgerBFT {
     transition_service: IoService<()>,
     client: Arc<RwLock<Option<Weak<dyn EngineClient>>>>,
@@ -161,6 +162,7 @@ impl IoHandler<()> for TransitionHandler {
 }
 
 impl HoneyBadgerBFT {
+    /// Initialize Hbbft engine from empty state.
     pub fn new(params: HbbftParams, machine: EthereumMachine) -> Result<Arc<Self>, Error> {
         let engine = Arc::new(HoneyBadgerBFT {
             transition_service: IoService::<()>::start()?,
@@ -223,7 +225,7 @@ impl HoneyBadgerBFT {
             .collect();
 
         // We use the median of all contributions' timestamps
-        let mut timestamps = batch
+        let timestamps = batch
             .contributions
             .iter()
             .map(|(_, c)| c.timestamp)
@@ -591,7 +593,7 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
         Ok(())
     }
 
-    fn fork_choice(&self, new: &ExtendedHeader, best: &ExtendedHeader) -> ForkChoice {
+    fn fork_choice(&self, _new: &ExtendedHeader, _best: &ExtendedHeader) -> ForkChoice {
         // Forks should never, ever happen with HBBFT.
         ForkChoice::New
     }
@@ -780,7 +782,6 @@ mod tests {
     use ethkey::{Generator, Random};
     use hbbft::honey_badger::{HoneyBadger, HoneyBadgerBuilder};
     use hbbft::NetworkInfo;
-    use rand;
     use std::sync::Arc;
     use types::transaction::SignedTransaction;
 
