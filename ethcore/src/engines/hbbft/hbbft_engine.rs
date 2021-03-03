@@ -771,3 +771,48 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use engines::hbbft::contribution::Contribution;
+    use engines::hbbft::utils::test_helpers::create_transaction;
+    use ethereum_types::U256;
+    use ethkey::{Generator, Random};
+    use hbbft::honey_badger::{HoneyBadger, HoneyBadgerBuilder};
+    use hbbft::NetworkInfo;
+    use rand;
+    use std::sync::Arc;
+    use types::transaction::SignedTransaction;
+
+    #[test]
+    fn test_single_contribution() {
+        let mut rng = rand_065::thread_rng();
+        let net_infos = NetworkInfo::generate_map(0..1usize, &mut rng)
+            .expect("NetworkInfo generation is expected to always succeed");
+
+        let net_info = net_infos
+            .get(&0)
+            .expect("A NetworkInfo must exist for node 0");
+
+        let mut builder: HoneyBadgerBuilder<Contribution, _> =
+            HoneyBadger::builder(Arc::new(net_info.clone()));
+
+        let mut honey_badger = builder.build();
+
+        let mut pending: Vec<SignedTransaction> = Vec::new();
+        let keypair = Random.generate().expect("KeyPair generation must succeed.");
+        pending.push(create_transaction(&keypair, &U256::from(1)));
+        let input_contribution = Contribution::new(&pending);
+
+        let step = honey_badger
+            .propose(&input_contribution, &mut rng)
+            .expect("Since there is only one validator we expect an immediate result");
+
+        // Assure the contribution returned by HoneyBadger matches the input
+        assert_eq!(step.output.len(), 1);
+        let out = step.output.first().unwrap();
+        assert_eq!(out.epoch, 0);
+        assert_eq!(out.contributions.len(), 1);
+        assert_eq!(out.contributions.get(&0).unwrap(), &input_contribution);
+    }
+}

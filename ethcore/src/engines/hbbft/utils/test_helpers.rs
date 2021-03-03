@@ -1,5 +1,5 @@
-use client::traits::Nonce;
-use client::{BlockQueueInfo, ChainSyncing, Client};
+use client::traits::{Balance, Nonce};
+use client::{BlockQueueInfo, ChainSyncing, Client, StateOrBlock};
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
 use ethkey::KeyPair;
@@ -70,8 +70,20 @@ impl HbbftTestClient {
             .unwrap();
     }
 
-    pub fn address(&self) -> Address {
-        self.keypair.address()
+    // Trigger a generic transaction to force block creation.
+    pub fn create_some_transaction(&mut self, caller: Option<&KeyPair>) {
+        let keypair = caller.unwrap_or(&self.keypair);
+        let cur_nonce = self
+            .client
+            .nonce(
+                &keypair.address(),
+                BlockId::Number(self.client.chain().best_block_number()),
+            )
+            .expect("Nonce for the current best block must always succeed");
+        let transaction = create_transaction(keypair, &cur_nonce);
+        self.miner
+            .import_own_transaction(self.client.as_ref(), transaction.into(), false)
+            .unwrap();
     }
 
     pub fn call_as(
@@ -92,6 +104,16 @@ impl HbbftTestClient {
         self.miner
             .import_claimed_local_transaction(self.client.as_ref(), transaction.into(), false)
             .unwrap();
+    }
+
+    pub fn balance(&self, address: &Address) -> U256 {
+        self.client
+            .balance(address, StateOrBlock::Block(BlockId::Latest))
+            .expect("Querying address balance should always succeed.")
+    }
+
+    pub fn address(&self) -> Address {
+        self.keypair.address()
     }
 }
 
