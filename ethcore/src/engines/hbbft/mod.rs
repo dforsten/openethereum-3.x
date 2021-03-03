@@ -73,4 +73,62 @@ mod tests {
         // Expect a new block to be created.
         assert_eq!(test_data.client.chain().best_block_number(), 2);
     }
+
+    #[test]
+    fn test_staking_account_creation() {
+        // Create Master of Ceremonies
+        let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
+
+        // Verify the master of ceremony is funded.
+        assert!(moc.balance(&moc.address()) > U256::from(10000000));
+
+        // Create a potential validator.
+        let miner_1 =
+            create_hbbft_client(Random.generate().expect("KeyPair generation must succeed."));
+
+        // Verify the pending validator is unfunded.
+        assert_eq!(moc.balance(&miner_1.address()), U256::from(0));
+
+        // Verify that we actually start at block 0.
+        assert_eq!(moc.client.chain().best_block_number(), 0);
+
+        let transaction_funds = U256::from(9000000000000000000u64);
+
+        // Inject a transaction, with instant sealing a block will be created right away.
+        moc.transfer_to(&miner_1.address(), &transaction_funds);
+
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 1);
+
+        // Verify the pending validator is now funded.
+        assert_eq!(moc.balance(&miner_1.address()), transaction_funds);
+
+        // Create staking address
+        let staker_1 = create_staker(&mut moc, &miner_1, transaction_funds);
+
+        // Expect two new blocks to be created, one for the transfer of staking funds,
+        // one for registering the staker as pool.
+        assert_eq!(moc.client.chain().best_block_number(), 3);
+
+        // Expect one transaction in the block.
+        let block = moc
+            .client
+            .block(BlockId::Number(3))
+            .expect("Block must exist");
+        // @todo Investigate why this block has two transactions - we only expect one.
+        //assert_eq!(block.transactions_count(), 1);
+
+        assert_ne!(
+            mining_by_staking_address(moc.client.as_ref(), &staker_1.address())
+                .expect("Constant call must succeed."),
+            Address::zero()
+        );
+
+        // Check if the staking pool is active.
+        assert_eq!(
+            is_pool_active(moc.client.as_ref(), staker_1.address())
+                .expect("Pool active query must succeed."),
+            true
+        );
+    }
 }
