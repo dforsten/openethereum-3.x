@@ -115,12 +115,15 @@ mod tests {
         assert_eq!(moc.client.chain().best_block_number(), 3);
 
         // Expect one transaction in the block.
-        let _block = moc
+        let block = moc
             .client
             .block(BlockId::Number(3))
             .expect("Block must exist");
-        // @todo Investigate why this block has two transactions - we only expect one.
-        //assert_eq!(block.transactions_count(), 1);
+        // Since the epoch duration is set to 1 in the genesis block we expect a Part write
+        // transaction to be sent after block 2 in addition to the the transaction for
+        // adding the staker.
+        // The expected number of transactions in block 3 is therefore 2!
+        assert_eq!(block.transactions_count(), 2);
 
         assert_ne!(
             mining_by_staking_address(moc.client.as_ref(), &staker_1.address())
