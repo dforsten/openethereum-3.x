@@ -1,4 +1,4 @@
-use client::traits::{Balance, Nonce};
+use client::traits::{Balance, EngineClient, Nonce};
 use client::{BlockQueueInfo, ChainSyncing, Client, StateOrBlock};
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
@@ -73,13 +73,11 @@ impl HbbftTestClient {
     // Trigger a generic transaction to force block creation.
     pub fn create_some_transaction(&mut self, caller: Option<&KeyPair>) {
         let keypair = caller.unwrap_or(&self.keypair);
-        let cur_nonce = self
+        let full_client = self
             .client
-            .nonce(
-                &keypair.address(),
-                BlockId::Number(self.client.chain().best_block_number()),
-            )
-            .expect("Nonce for the current best block must always succeed");
+            .as_full_client()
+            .expect("Client must be upgradable to full client.");
+        let cur_nonce = full_client.next_nonce(&keypair.address());
         let transaction = create_transaction(keypair, &cur_nonce);
         self.miner
             .import_own_transaction(self.client.as_ref(), transaction.into(), false)

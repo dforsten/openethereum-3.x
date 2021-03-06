@@ -114,7 +114,6 @@ mod tests {
         // one for registering the staker as pool.
         assert_eq!(moc.client.chain().best_block_number(), 3);
 
-        // Expect one transaction in the block.
         let block = moc
             .client
             .block(BlockId::Number(3))
@@ -180,18 +179,39 @@ mod tests {
         // First the validator realizes it is in the next validator set and sends his part.
         moc.create_some_transaction(Some(&transactor));
 
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 2);
+
         // The part will be included in the block triggered by this transaction, but not part of the global state yet,
         // so it sends the transaction another time.
         moc.create_some_transaction(Some(&transactor));
 
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 3);
+
         // Now the part is part of the global chain state, and we send our acks.
         moc.create_some_transaction(Some(&transactor));
+
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 4);
 
         // The acks will be included in the block triggered by this transaction, but not part of the global state yet.
         moc.create_some_transaction(Some(&transactor));
 
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 5);
+
         // Now the acks are part of the global block state, and the key generation is complete and the next epoch begins
         moc.create_some_transaction(Some(&transactor));
+
+        // Expect a new block to be created.
+        assert_eq!(moc.client.chain().best_block_number(), 6);
+
+        let block = moc
+            .client
+            .block(BlockId::Number(6))
+            .expect("Block must exist");
+        assert_eq!(block.transactions_count(), 2);
 
         // At this point we should be in the new epoch.
         assert_eq!(
