@@ -22,7 +22,7 @@ use devp2p::PAYLOAD_SOFT_LIMIT;
 pub const PAYLOAD_SOFT_LIMIT: usize = 100_000;
 
 use enum_primitive::FromPrimitive;
-use ethereum_types::H256;
+use ethereum_types::{H256, H512};
 use network::{self, PeerId};
 use rlp::{Rlp, RlpStream};
 use std::{cmp, sync::RwLock as StdRwLock};
@@ -58,6 +58,7 @@ impl SyncSupplier {
         peer: PeerId,
         packet_id: u8,
         data: &[u8],
+        node_id: Option<H512>,
     ) {
         let rlp = Rlp::new(data);
 
@@ -113,7 +114,9 @@ impl SyncSupplier {
                     debug!(target: "sync", "{} -> Dispatching packet: {}", peer, packet_id);
 
                     match id {
-                        ConsensusDataPacket => SyncHandler::on_consensus_packet(io, peer, &rlp),
+                        ConsensusDataPacket => {
+                            SyncHandler::on_consensus_packet(io, peer, &rlp, node_id)
+                        }
                         TransactionsPacket => {
                             let res = {
                                 let sync_ro = sync.read().unwrap();
@@ -654,6 +657,7 @@ mod test {
             0usize,
             GetReceiptsPacket.id(),
             &receipts_request,
+            None,
         );
         assert_eq!(1, io.packets.len());
     }

@@ -328,6 +328,15 @@ impl SyncPropagator {
         }
     }
 
+    pub fn send_consensus_packet(
+        _sync: &mut ChainSync,
+        io: &mut dyn SyncIo,
+        packet: Bytes,
+        peer_id: usize,
+    ) {
+        SyncPropagator::send_packet(io, peer_id, ConsensusDataPacket, packet.clone());
+    }
+
     fn select_peers_for_transactions<F>(sync: &ChainSync, filter: F) -> Vec<PeerId>
     where
         F: Fn(&PeerId) -> bool,

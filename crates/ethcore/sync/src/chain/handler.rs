@@ -23,7 +23,7 @@ use ethcore::{
     snapshot::{ManifestData, RestorationStatus},
     verification::queue::kind::blocks::Unverified,
 };
-use ethereum_types::{H256, U256};
+use ethereum_types::{H256, H512, U256};
 use hash::keccak;
 use network::{client_version::ClientVersion, PeerId};
 use rlp::Rlp;
@@ -95,9 +95,15 @@ impl SyncHandler {
     }
 
     /// Called when peer sends us new consensus packet
-    pub fn on_consensus_packet(io: &mut dyn SyncIo, peer_id: PeerId, r: &Rlp) {
+    pub fn on_consensus_packet(
+        io: &mut dyn SyncIo,
+        peer_id: PeerId,
+        r: &Rlp,
+        node_id: Option<H512>,
+    ) {
         trace!(target: "sync", "Received consensus packet from {:?}", peer_id);
-        io.chain().queue_consensus_message(r.as_raw().to_vec());
+        io.chain()
+            .queue_consensus_message(r.as_raw().to_vec(), node_id);
     }
 
     /// Called by peer when it is disconnecting
