@@ -25,7 +25,10 @@ use ethereum_types::{Address, BigEndianHash, H160, H256, U256};
 use parity_util_mem::MallocSizeOf;
 
 use rlp::{self, DecoderError, Rlp, RlpStream};
-use std::ops::Deref;
+use std::{
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 
 pub type AccessListItem = (H160, Vec<H256>);
 pub type AccessList = Vec<AccessListItem>;
@@ -609,6 +612,12 @@ impl Deref for UnverifiedTransaction {
 
     fn deref(&self) -> &Self::Target {
         &self.unsigned
+    }
+}
+
+impl Hash for UnverifiedTransaction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(self.hash.as_bytes());
     }
 }
 
