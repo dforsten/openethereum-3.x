@@ -1150,6 +1150,16 @@ impl super::traits::EngineClient for TestBlockChainClient {
     fn block_header(&self, id: BlockId) -> Option<encoded::Header> {
         BlockChainClient::block_header(self, id)
     }
+
+    fn create_pending_block_at(
+        &self,
+        txns: Vec<SignedTransaction>,
+        timestamp: u64,
+        block_number: u64,
+    ) -> Option<Header> {
+        self.miner
+            .create_pending_block_at(self, txns, timestamp, block_number)
+    }
 }
 
 impl PrometheusMetrics for TestBlockChainClient {
