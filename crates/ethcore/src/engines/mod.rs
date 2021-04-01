@@ -61,7 +61,7 @@ use vm::{ActionValue, CallType, CreateContractAddress, EnvInfo, Schedule};
 use block::ExecutedBlock;
 use bytes::Bytes;
 use crypto::publickey::Signature;
-use ethereum_types::{Address, H256, H64, U256};
+use ethereum_types::{Address, H256, H512, H64, U256};
 use machine::{self, AuxiliaryData, AuxiliaryRequest, Machine};
 use types::ancestry_action::AncestryAction;
 use unexpected::{Mismatch, OutOfBounds};
@@ -463,7 +463,7 @@ pub trait Engine<M: Machine>: Sync + Send {
 
     /// Handle any potential consensus messages;
     /// updating consensus state and potentially issuing a new one.
-    fn handle_message(&self, _message: &[u8]) -> Result<(), EngineError> {
+    fn handle_message(&self, _message: &[u8], _node_id: Option<H512>) -> Result<(), EngineError> {
         Err(EngineError::UnexpectedMessage)
     }
 
