@@ -30,7 +30,7 @@ use bytes::Bytes;
 use crypto::publickey::{Generator, Random};
 use db::{COL_STATE, NUM_COLUMNS};
 use ethcore_miner::pool::VerifiedTransaction;
-use ethereum_types::{Address, H256, U256};
+use ethereum_types::{Address, H256, H512, U256};
 use ethtrie;
 use hash::keccak;
 use itertools::Itertools;
@@ -1157,6 +1157,16 @@ impl super::traits::EngineClient for TestBlockChainClient {
 
     fn queued_transactions(&self) -> Vec<Arc<VerifiedTransaction>> {
         self.miner.queued_transactions()
+    }
+
+    fn create_pending_block_at(
+        &self,
+        txns: Vec<SignedTransaction>,
+        timestamp: u64,
+        block_number: u64,
+    ) -> Option<Header> {
+        self.miner
+            .create_pending_block_at(self, txns, timestamp, block_number)
     }
 }
 
