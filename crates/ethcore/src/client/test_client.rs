@@ -1069,7 +1069,13 @@ impl BlockChainClient for TestBlockChainClient {
 
     fn transact(&self, tx_request: TransactionRequest) -> Result<(), transaction::Error> {
         let signed = self.create_transaction(tx_request)?;
-        self.miner.import_own_transaction(self, signed.into())
+        self.miner
+            .import_own_transaction(self, signed.into(), false)
+    }
+
+    fn transact_silently(&self, tx_request: TransactionRequest) -> Result<(), transaction::Error> {
+        let signed = self.create_transaction(tx_request)?;
+        self.miner.import_own_transaction(self, signed.into(), true)
     }
 
     fn registrar_address(&self) -> Option<Address> {

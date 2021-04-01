@@ -1177,6 +1177,7 @@ impl miner::MinerService for Miner {
         &self,
         chain: &C,
         pending: PendingTransaction,
+        silently: bool,
     ) -> Result<(), transaction::Error> {
         // note: you may want to use `import_claimed_local_transaction` instead of this one.
 
@@ -1193,7 +1194,7 @@ impl miner::MinerService for Miner {
         // | NOTE Code below requires sealing locks.                                |
         // | Make sure to release the locks before calling that method.             |
         // --------------------------------------------------------------------------
-        if imported.is_ok() {
+        if !silently && imported.is_ok() {
             self.engine.on_transactions_imported();
             if self.options.reseal_on_own_tx && self.sealing.lock().reseal_allowed() {
                 self.prepare_and_update_sealing(chain);
@@ -1217,7 +1218,7 @@ impl miner::MinerService for Miner {
             || self.accounts.is_local(&sender);
 
         if treat_as_local {
-            self.import_own_transaction(chain, pending)
+            self.import_own_transaction(chain, pending, false)
         } else {
             // We want to replicate behaviour for external transactions if we're not going to treat
             // this as local. This is important with regards to sealing blocks
@@ -1788,7 +1789,11 @@ mod tests {
         let transaction = transaction();
         let best_block = 0;
         // when
-        let res = miner.import_own_transaction(&client, PendingTransaction::new(transaction, None));
+        let res = miner.import_own_transaction(
+            &client,
+            PendingTransaction::new(transaction, None),
+            false,
+        );
 
         // then
         assert_eq!(res.unwrap(), ());
@@ -1845,7 +1850,11 @@ mod tests {
         let transaction = transaction();
         let best_block = 10;
         // when
-        let res = miner.import_own_transaction(&client, PendingTransaction::new(transaction, None));
+        let res = miner.import_own_transaction(
+            &client,
+            PendingTransaction::new(transaction, None),
+            false,
+        );
 
         // then
         assert_eq!(res.unwrap(), ());
@@ -2085,7 +2094,8 @@ mod tests {
         assert!(miner
             .import_own_transaction(
                 &*client,
-                PendingTransaction::new(transaction_with_chain_id(spec.chain_id()).into(), None)
+                PendingTransaction::new(transaction_with_chain_id(spec.chain_id()).into(), None),
+                false
             )
             .is_ok());
 

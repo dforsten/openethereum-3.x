@@ -440,6 +440,10 @@ pub trait BlockChainClient:
     /// block with the given gas and nonce parameters.
     fn transact(&self, tx_request: TransactionRequest) -> Result<(), transaction::Error>;
 
+    /// Same as transact(), but just adding the transaction to the queue, without calling back into the engine.
+    /// Used by engines to queue transactions without causing deadlocks due to re-entrant calls.
+    fn transact_silently(&self, tx_request: TransactionRequest) -> Result<(), transaction::Error>;
+
     /// Get the address of the registry itself.
     fn registrar_address(&self) -> Option<Address>;
 
