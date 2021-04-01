@@ -2736,6 +2736,10 @@ impl BlockChainClient for Client {
         }
     }
 
+    fn next_nonce(&self, address: &Address) -> U256 {
+        self.importer.miner.next_nonce(self, address)
+    }
+
     fn registrar_address(&self) -> Option<Address> {
         self.registrar_address.clone()
     }
