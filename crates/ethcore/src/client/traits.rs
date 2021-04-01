@@ -208,6 +208,12 @@ pub trait EngineInfo {
     fn engine(&self) -> &dyn EthEngine;
 }
 
+/// Provides information about the chain sync state.
+pub trait ChainSyncing: Send + Sync {
+    /// are we in the middle of a major sync?
+    fn is_major_syncing(&self) -> bool;
+}
+
 /// IO operations that should off-load heavy work to another thread.
 pub trait IoClient: Sync + Send {
     /// Queue transactions for importing.
@@ -443,6 +449,9 @@ pub trait BlockChainClient:
     /// Same as transact(), but just adding the transaction to the queue, without calling back into the engine.
     /// Used by engines to queue transactions without causing deadlocks due to re-entrant calls.
     fn transact_silently(&self, tx_request: TransactionRequest) -> Result<(), transaction::Error>;
+
+    /// Returns true if the chain is currently syncing.
+    fn is_major_syncing(&self) -> bool;
 
     /// Get the address of the registry itself.
     fn registrar_address(&self) -> Option<Address>;

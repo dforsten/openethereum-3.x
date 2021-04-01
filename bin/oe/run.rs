@@ -36,13 +36,15 @@ use crate::{
         GasPricerConfig, MinerExtras, Pruning, SpecType, Switch,
     },
     rpc, rpc_apis, secretstore, signer,
-    sync::{self, SyncConfig},
+    sync::{self, SyncConfig, SyncProvider},
     user_defaults::UserDefaults,
 };
 use ansi_term::Colour;
 use dir::{DatabaseDirectories, Directories};
 use ethcore::{
-    client::{BlockChainClient, BlockInfo, Client, DatabaseCompactionProfile, Mode, VMType},
+    client::{
+        BlockChainClient, BlockInfo, ChainSyncing, Client, DatabaseCompactionProfile, Mode, VMType,
+    },
     miner::{self, stratum, Miner, MinerOptions, MinerService},
     snapshot::{self, SnapshotConfiguration},
     verification::queue::VerifierSettings,
@@ -136,6 +138,27 @@ impl crate::local_store::NodeInfo for FullNodeInfo {
                 _ => None,
             })
             .collect()
+    }
+}
+
+struct SyncProviderWrapper {
+    sync_provider: Weak<dyn SyncProvider>,
+    client: Weak<Client>,
+}
+
+impl ChainSyncing for SyncProviderWrapper {
+    /// are we in the middle of a major sync?
+    fn is_major_syncing(&self) -> bool {
+        match self.sync_provider.upgrade() {
+            Some(sync_arc) => match self.client.upgrade() {
+                Some(client_arc) => {
+                    is_major_importing(Some(sync_arc.status().state), client_arc.queue_info())
+                }
+                None => true,
+            },
+            // We also indicate the "syncing" state when the SyncProvider has already been destroyed.
+            None => true,
+        }
     }
 }
 
@@ -404,7 +427,7 @@ pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient
         match store.pending_transactions() {
             Ok(pending) => {
                 for pending_tx in pending {
-                    if let Err(e) = miner.import_own_transaction(&*client, pending_tx) {
+                    if let Err(e) = miner.import_own_transaction(&*client, pending_tx, false) {
                         warn!("Error importing saved transaction: {}", e)
                     }
                 }
@@ -583,6 +606,15 @@ pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient
             Some(watcher)
         }
     };
+
+    // Registering the sync provider as late as possible to use it as indicator that
+    // client startup has finished.
+    // This is essential to assure no block creation attempt happens before the client
+    // is fully configured.
+    client.set_sync_provider(Box::new(SyncProviderWrapper {
+        sync_provider: Arc::downgrade(&sync_provider),
+        client: Arc::downgrade(&client),
+    }));
 
     Ok(RunningClient {
         inner: RunningClientInner::Full {

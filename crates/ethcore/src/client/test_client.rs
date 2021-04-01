@@ -1078,6 +1078,10 @@ impl BlockChainClient for TestBlockChainClient {
         self.miner.import_own_transaction(self, signed.into(), true)
     }
 
+    fn is_major_syncing(&self) -> bool {
+        false
+    }
+
     fn registrar_address(&self) -> Option<Address> {
         None
     }
