@@ -1,5 +1,8 @@
-mod utils;
+mod block_reward_hbbft;
 mod contracts;
+mod contribution;
+mod sealing;
+mod utils;
 
 use crypto::publickey::Public;
 use std::fmt;
