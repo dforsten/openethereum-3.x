@@ -1,6 +1,7 @@
 mod block_reward_hbbft;
 mod contracts;
 mod contribution;
+mod hbbft_state;
 mod sealing;
 mod utils;
 
