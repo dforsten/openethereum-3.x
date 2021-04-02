@@ -1082,6 +1082,10 @@ impl BlockChainClient for TestBlockChainClient {
         false
     }
 
+    fn next_nonce(&self, address: &Address) -> U256 {
+        self.miner.next_nonce(self, address)
+    }
+
     fn registrar_address(&self) -> Option<Address> {
         None
     }

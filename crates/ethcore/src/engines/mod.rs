@@ -19,6 +19,7 @@
 mod authority_round;
 mod basic_authority;
 mod clique;
+mod hbbft;
 mod instant_seal;
 mod null_engine;
 mod validator_set;

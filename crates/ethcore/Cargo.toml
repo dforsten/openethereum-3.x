@@ -8,6 +8,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
 ansi_term = "0.10"
+bincode = "1.1.2"
 blooms-db = { path = "../db/blooms-db", optional = true }
 common-types = { path = "types" }
 crossbeam-utils = "0.6"
@@ -32,6 +33,9 @@ ethkey = { path = "../accounts/ethkey" }
 evm = { path = "../vm/evm" }
 globset = "0.4"
 hash-db = "0.11.0"
+hbbft = { git = "https://github.com/poanetwork/hbbft", rev = "4857b7f9c7a0f513caca97c308d352c6a77fe5c2" }
+hbbft_testing = { git = "https://github.com/poanetwork/hbbft" }
+hex_fmt = "0.3.0"
 itertools = "0.5"
 journaldb = { path = "../db/journaldb" }
 keccak-hash = "0.5.0"
@@ -55,6 +59,7 @@ parity-util-mem = "0.7"
 parking_lot = "0.7"
 trie-db = "0.11.0"
 patricia-trie-ethereum = { path = "../db/patricia-trie-ethereum" }
+rand_065 = { package = "rand", version = "0.6.5" }
 rand = "0.7.3"
 rand_xorshift = "0.2.0"
 rayon = "1.1"
