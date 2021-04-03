@@ -31,6 +31,7 @@ pub use self::{
     authority_round::AuthorityRound,
     basic_authority::BasicAuthority,
     clique::Clique,
+    hbbft::HoneyBadgerBFT,
     instant_seal::{InstantSeal, InstantSealParams},
     null_engine::NullEngine,
     signer::EngineSigner,
@@ -546,6 +547,12 @@ pub trait Engine<M: Machine>: Sync + Send {
     fn gas_limit_override(&self, _header: &Header) -> Option<U256> {
         None
     }
+
+    /// Whether the miner should prepare blocks for sealing for this engine.
+    fn should_miner_prepare_blocks(&self) -> bool { true }
+
+    /// Use the author as signer as well as block author.
+    fn use_block_author(&self) -> bool { true }
 }
 
 /// t_nb 9.3 Check whether a given block is the best block based on the default total difficulty rule.
@@ -655,16 +662,6 @@ pub trait EthEngine: Engine<::machine::EthereumMachine> {
     /// The configured minimum gas limit. Used by AuRa Engine.
     fn min_gas_limit(&self) -> U256 {
         self.params().min_gas_limit
-    }
-
-    /// Whether the miner should prepare blocks for sealing for this engine.
-    fn should_miner_prepare_blocks(&self) -> bool {
-        true
-    }
-
-    /// Use the author as signer as well as block author.
-    fn use_block_author(&self) -> bool {
-        true
     }
 }
 

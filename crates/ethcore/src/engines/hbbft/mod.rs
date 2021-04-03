@@ -1,9 +1,12 @@
 mod block_reward_hbbft;
 mod contracts;
 mod contribution;
+mod hbbft_engine;
 mod hbbft_state;
 mod sealing;
 mod utils;
+
+pub use self::hbbft_engine::HoneyBadgerBFT;
 
 use crypto::publickey::Public;
 use std::fmt;

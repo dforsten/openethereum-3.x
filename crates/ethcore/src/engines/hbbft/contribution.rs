@@ -1,5 +1,5 @@
 use rand_065::{self, distributions::Standard, Rng};
-use rlp::{Encodable, RlpStream};
+use rlp::RlpStream;
 use std::time::UNIX_EPOCH;
 use types::transaction::SignedTransaction;
 

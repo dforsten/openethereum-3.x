@@ -19,7 +19,6 @@
 //! Ethcore library
 
 extern crate ansi_term;
-extern crate bincode;
 extern crate common_types as types;
 extern crate crossbeam_utils;
 extern crate derive_more;
@@ -35,7 +34,6 @@ extern crate ethereum_types;
 extern crate ethjson;
 extern crate hash_db;
 extern crate hbbft;
-extern crate hex_fmt;
 extern crate itertools;
 extern crate journaldb;
 extern crate keccak_hash as hash;
@@ -60,6 +58,7 @@ extern crate reth_util;
 extern crate rlp;
 extern crate rustc_hex;
 extern crate serde;
+extern crate serde_json;
 extern crate stats;
 extern crate time_utils;
 extern crate trie_db as trie;

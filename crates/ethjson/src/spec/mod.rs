@@ -24,6 +24,7 @@ pub mod clique;
 pub mod engine;
 pub mod ethash;
 pub mod genesis;
+pub mod hbbft;
 pub mod instant_seal;
 pub mod null_engine;
 pub mod params;
@@ -42,6 +43,7 @@ pub use self::{
     engine::Engine,
     ethash::{BlockReward, Ethash, EthashParams},
     genesis::Genesis,
+    hbbft::{Hbbft, HbbftParams},
     instant_seal::{InstantSeal, InstantSealParams},
     null_engine::{NullEngine, NullEngineParams},
     params::Params,
