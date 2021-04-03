@@ -60,7 +60,6 @@ mod tests {
     use crypto::publickey::{Generator, Random};
     use engines::hbbft::utils::test_helpers::create_transaction;
     use ethereum_types::U256;
-    use rlp::{Decodable, Rlp};
     use types::transaction::{SignedTransaction, TypedTransaction};
 
     #[test]

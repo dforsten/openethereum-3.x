@@ -1,9 +1,8 @@
 use client::traits::{Balance, Nonce, StateOrBlock};
 use client::{ChainSyncing, Client};
-use crypto::publickey::{KeyPair, Public};
+use crypto::publickey::KeyPair;
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
-use hbbft::NetworkInfo;
 use miner::{Miner, MinerService};
 use spec::Spec;
 use std::sync::Arc;
@@ -113,33 +112,6 @@ pub fn create_hbbft_client(keypair: KeyPair) -> HbbftTestClient {
         miner,
         keypair,
         nonce: U256::from(0),
-    }
-}
-
-pub fn hbbft_client_setup(keypair: KeyPair, net_info: NetworkInfo<Public>) -> HbbftTestClient {
-    assert_eq!(keypair.public(), net_info.our_id());
-    let client = hbbft_client();
-
-    // Get miner reference
-    let miner = client.miner();
-
-    let engine = client.engine();
-    // Set the signer *before* registering the client with the engine.
-    let signer = from_keypair(keypair.clone());
-
-    engine.set_signer(Some(signer));
-    engine.register_client(Arc::downgrade(&client) as _);
-
-    // Register notify object for capturing consensus messages
-    let notify = Arc::new(TestNotify::default());
-    client.add_notify(notify.clone());
-
-    HbbftTestClient {
-        client,
-        notify,
-        miner,
-        keypair,
-        nonce: U256::from(1048576),
     }
 }
 
