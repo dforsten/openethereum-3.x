@@ -237,6 +237,10 @@ impl SealingWork {
     fn reseal_allowed(&self) -> bool {
         Instant::now() > self.next_allowed_reseal
     }
+
+    fn work_available(&self) -> bool {
+        self.queue.peek_last_ref().is_some()
+    }
 }
 
 /// Keeps track of transactions using priority queue and holds currently mined block.
@@ -1038,19 +1042,34 @@ impl Miner {
         preparation_status
     }
 
+    /// Set `sealing.enabled` to true if there is available work to do (pending or in the queue).
+    fn maybe_enable_sealing(&self) -> bool {
+        let mut sealing = self.sealing.lock();
+        if !sealing.work_available() {
+            trace!(target: "miner", "maybe_enable_sealing: we have work to do so enabling sealing");
+            sealing.enabled = true;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Prepare pending block, check whether sealing is needed, and then update sealing.
     fn prepare_and_update_sealing<C: miner::BlockChainClient>(&self, chain: &C) {
-        // Make sure to do it after transaction is imported and lock is dropped.
-        // We need to create pending block and enable sealing.
-        let sealing_state = self.engine.sealing_state();
-
-        if sealing_state == SealingState::Ready
-            || self.prepare_pending_block(chain) == BlockPreparationStatus::NotPrepared
-        {
-            // If new block has not been prepared (means we already had one)
-            // or Engine might be able to seal internally,
-            // we need to update sealing.
-            self.update_sealing(chain, ForceUpdateSealing::No);
+        match self.engine.sealing_state() {
+            SealingState::Ready => {
+                self.maybe_enable_sealing();
+                self.update_sealing(chain, ForceUpdateSealing::No);
+            }
+            SealingState::External => {
+                // this calls `maybe_enable_sealing()`
+                if self.prepare_pending_block(chain) == BlockPreparationStatus::NotPrepared {
+                    self.update_sealing(chain, ForceUpdateSealing::No);
+                }
+            }
+            SealingState::NotReady => {
+                self.maybe_enable_sealing();
+            }
         }
     }
 }
