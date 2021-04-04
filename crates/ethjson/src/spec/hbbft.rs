@@ -16,8 +16,8 @@
 
 //! Hbbft parameter deserialization.
 
-use serde::Deserialize;
 use ethereum_types::Address;
+use serde::Deserialize;
 
 /// Hbbft parameters.
 #[derive(Debug, PartialEq, Deserialize)]
@@ -61,6 +61,9 @@ mod tests {
         assert_eq!(deserialized.params.minimum_block_time, 0);
         assert_eq!(deserialized.params.transaction_queue_size_trigger, 1);
         assert_eq!(deserialized.params.is_unit_test, Some(true));
-        assert_eq!(deserialized.params.block_reward_contract_address, Address::from("0x2000000000000000000000000000000000000002"));
+        assert_eq!(
+            deserialized.params.block_reward_contract_address,
+            Address::from("0x2000000000000000000000000000000000000002")
+        );
     }
 }

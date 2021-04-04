@@ -129,5 +129,6 @@ members = [
 	"bin/ethkey",
 	"bin/ethstore",
 	"bin/evmbin",
-	"bin/chainspec"
+	"bin/chainspec",
+	"crates/ethcore/src/engines/hbbft/hbbft_config_generator"
 ]
