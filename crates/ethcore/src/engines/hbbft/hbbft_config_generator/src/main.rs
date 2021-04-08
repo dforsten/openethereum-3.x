@@ -121,9 +121,6 @@ fn to_toml(
         }
     }
 
-    let mut ui = Map::new();
-    ui.insert("disable".into(), Value::Boolean(true));
-
     let mut network = Map::new();
     network.insert("port".into(), Value::Integer(base_port + i as i64));
     match config_type {
@@ -166,9 +163,6 @@ fn to_toml(
         "parity_pubsub",
         "personal",
         "traces",
-        "rpc",
-        "shh",
-        "shh_pubsub",
     ]);
     rpc.insert("apis".into(), apis);
     rpc.insert("port".into(), Value::Integer(base_rpc_port + i as i64));
@@ -226,7 +220,6 @@ fn to_toml(
 
     let mut map = Map::new();
     map.insert("parity".into(), Value::Table(parity));
-    map.insert("ui".into(), Value::Table(ui));
     map.insert("network".into(), Value::Table(network));
     map.insert("rpc".into(), Value::Table(rpc));
     map.insert("websockets".into(), Value::Table(websockets));
