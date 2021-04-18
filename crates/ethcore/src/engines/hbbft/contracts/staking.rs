@@ -38,7 +38,7 @@ pub fn start_time_of_next_phase_transition(client: &dyn EngineClient) -> Result<
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use engines::hbbft::utils::test_helpers::HbbftTestClient;
+    use engines::hbbft::test::test_helpers::HbbftTestClient;
     use crypto::publickey::{Generator, KeyPair, Public, Random};
 
     pub fn min_staking(client: &dyn EngineClient) -> Result<U256, CallError> {

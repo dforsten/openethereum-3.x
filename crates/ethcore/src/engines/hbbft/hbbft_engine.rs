@@ -803,7 +803,7 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
 #[cfg(test)]
 mod tests {
     use super::super::contribution::Contribution;
-    use super::super::utils::test_helpers::create_transaction;
+    use super::super::test::test_helpers::create_transaction;
     use crypto::publickey::{Generator, Random};
     use ethereum_types::U256;
     use hbbft::honey_badger::{HoneyBadger, HoneyBadgerBuilder};
