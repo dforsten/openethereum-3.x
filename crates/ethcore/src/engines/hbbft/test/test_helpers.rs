@@ -1,10 +1,11 @@
 use client::traits::{Balance, Nonce, StateOrBlock};
-use client::{ChainSyncing, Client, ImportExportBlocks};
+use client::{BlockChainClient, ChainSyncing, Client, ImportExportBlocks};
 use crypto::publickey::KeyPair;
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
 use miner::{Miner, MinerService};
 use spec::Spec;
+use std::ops::Deref;
 use std::sync::Arc;
 use test_helpers::generate_dummy_client_with_spec;
 use test_helpers::TestNotify;
@@ -116,7 +117,21 @@ impl HbbftTestClient {
 
         other
             .client
-            .import_blocks(Box::new(&*out), Some(DataFormat::Binary)).unwrap();
+            .import_blocks(Box::new(&*out), Some(DataFormat::Binary))
+            .unwrap();
+    }
+
+    pub fn sync_transactions_to(&self, other: &mut Self) {
+        let transactions = self
+            .client
+            .transactions_to_propagate()
+            .iter()
+            .map(|i| i.signed().deref().clone())
+            .collect();
+
+        other
+            .miner
+            .import_external_transactions(&*self.client, transactions);
     }
 }
 

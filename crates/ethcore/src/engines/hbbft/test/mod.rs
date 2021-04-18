@@ -194,4 +194,6 @@ fn sync_two_validators() {
         validator_1.balance(&transactor.address()),
         transaction_funds
     );
+
+    moc.sync_transactions_to(&mut validator_1);
 }
