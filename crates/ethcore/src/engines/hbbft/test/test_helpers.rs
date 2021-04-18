@@ -1,5 +1,5 @@
 use client::traits::{Balance, Nonce, StateOrBlock};
-use client::{ChainSyncing, Client};
+use client::{ChainSyncing, Client, ImportExportBlocks};
 use crypto::publickey::KeyPair;
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
@@ -8,6 +8,7 @@ use spec::Spec;
 use std::sync::Arc;
 use test_helpers::generate_dummy_client_with_spec;
 use test_helpers::TestNotify;
+use types::data_format::DataFormat;
 use types::ids::BlockId;
 use types::transaction::{Action, SignedTransaction, Transaction, TypedTransaction};
 
@@ -93,6 +94,29 @@ impl HbbftTestClient {
 
     pub fn address(&self) -> Address {
         self.keypair.address()
+    }
+
+    pub fn sync_blocks_to(&self, other: &mut Self) {
+        let self_block_nr = self.client.chain().best_block_number();
+        let other_block_nr = other.client.chain().best_block_number();
+
+        if self_block_nr <= other_block_nr {
+            return;
+        }
+
+        let mut out = Vec::new();
+        self.client
+            .export_blocks(
+                Box::new(&mut out),
+                BlockId::Number(other_block_nr + 1),
+                BlockId::Number(self_block_nr),
+                Some(DataFormat::Binary),
+            )
+            .unwrap();
+
+        other
+            .client
+            .import_blocks(Box::new(&*out), Some(DataFormat::Binary)).unwrap();
     }
 }
 

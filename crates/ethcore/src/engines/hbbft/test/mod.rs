@@ -158,3 +158,40 @@ fn test_epoch_transition() {
     // Let's do another one to check if the transition to the new honey badger and keys works.
     moc.create_some_transaction(Some(&transactor));
 }
+
+#[test]
+fn sync_two_validators() {
+    // Create the MOC client
+    let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
+
+    // To avoid performing external transactions with the MoC we create and fund a random address.
+    let transactor: KeyPair = Random.generate();
+
+    // Fund the transactor.
+    // Also triggers the creation of a block.
+    // This implicitly calls the block reward contract, which should trigger a phase transition
+    // since we already verified that the genesis transition time threshold has been reached.
+    let transaction_funds = U256::from(9000000000000000000u64);
+    moc.transfer_to(&transactor.address(), &transaction_funds);
+
+    // Expect a new block to be created.
+    assert_eq!(moc.client.chain().best_block_number(), 1);
+
+    // Verify the pending validator is now funded.
+    assert_eq!(moc.balance(&transactor.address()), transaction_funds);
+
+    // Create the pool 1 client and set up the pool
+    let mut validator_1 = create_hbbft_client(Random.generate());
+
+    // Verify the pending validator is now funded.
+    assert_eq!(validator_1.balance(&transactor.address()), U256::zero());
+
+    // Sync blocks from moc to validator 1
+    moc.sync_blocks_to(&mut validator_1);
+
+    // Verify the pending validator is now funded.
+    assert_eq!(
+        validator_1.balance(&transactor.address()),
+        transaction_funds
+    );
+}
