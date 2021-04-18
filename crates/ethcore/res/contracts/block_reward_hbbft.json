@@ -32,21 +32,7 @@
     "stateMutability": "view",
     "type": "function"
   },
-  {
-    "constant": true,
-    "inputs": [],
-    "name": "VALIDATOR_MIN_REWARD_PERCENT",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
+  
   {
     "constant": false,
     "inputs": [],
