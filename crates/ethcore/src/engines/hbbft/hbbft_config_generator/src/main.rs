@@ -24,6 +24,7 @@ use std::fmt::Write;
 use std::fs;
 use std::num::NonZeroU32;
 use std::str::FromStr;
+use std::sync::Arc;
 use toml::{map::Map, Value};
 
 pub fn create_account() -> (Secret, Public, Address) {
@@ -263,15 +264,21 @@ fn main() {
         .author("David Forstenlechner <dforsten@gmail.com>")
         .about("Generates n toml files for running a hbbft validator node network")
         .arg(
-            Arg::with_name("INPUT")
-                .help("The number of config files to generate")
+            Arg::with_name("validator_nodes")
+                .help("The number of initial validators to generate")
                 .required(true)
                 .index(1),
         )
         .arg(
+            Arg::with_name("total_nodes")
+                .help("The number of total validators to generate")
+                .required(true)
+                .index(2),
+        )
+        .arg(
             Arg::from_usage("<configtype> 'The ConfigType to use'")
                 .possible_values(&ConfigType::variants())
-                .index(2),
+                .index(3),
         )
         .arg(
             Arg::with_name("private_keys")
@@ -288,18 +295,27 @@ fn main() {
         )
         .get_matches();
 
-    let num_nodes: usize = matches
-        .value_of("INPUT")
-        .expect("Number of nodes input required")
+    let num_nodes_validators: usize = matches
+        .value_of("validator_nodes")
+        .expect("Number of validators input required")
         .parse()
-        .expect("Input must be of integer type");
+        .expect("Validators must be of integer type");
 
-    println!("Number of config files to generate: {}", num_nodes);
+    let num_nodes_total: usize = matches
+        .value_of("total_nodes")
+        .expect("Number of max_nodes input required")
+        .parse()
+        .expect("total_nodes must be of integer type");
+
+    assert!(num_nodes_total >= num_nodes_validators, "max_nodes must be greater than nodes");
+
+    println!("generating config files for {} nodes in total, with the first {} nodes as initial validator", num_nodes_total, num_nodes_validators);
 
     let config_type =
         value_t!(matches.value_of("configtype"), ConfigType).unwrap_or(ConfigType::PosdaoSetup);
 
     let external_ip = matches.value_of("extip");
+
     let private_keys = matches
         .values_of("private_keys")
         .map_or(Vec::new(), |values| {
@@ -310,14 +326,27 @@ fn main() {
 
     // If private keys are specified we expect as many as there are nodes.
     if private_keys.len() != 0 {
-        assert!(private_keys.len() == num_nodes);
+        assert!(private_keys.len() == num_nodes_total);
     };
 
-    let enodes_map = generate_enodes(num_nodes, private_keys, external_ip);
+    let enodes_map = generate_enodes(num_nodes_total, private_keys, external_ip);
     let mut rng = rand::thread_rng();
 
     let pub_keys = enodes_to_pub_keys(&enodes_map);
-    let (sync_keygen, parts, acks) = generate_keygens(pub_keys, &mut rng, (num_nodes - 1) / 3);
+
+    // we only need the first x pub_keys
+    let mut pub_keys_for_key_gen = pub_keys
+        .iter()
+        .take(num_nodes_validators)
+        .map(|x| (x.0.clone(), x.1.clone()))
+        .collect();
+
+    let mut pub_keys_for_key_gen_btree = BTreeMap::new();
+
+    pub_keys_for_key_gen_btree.append(&mut pub_keys_for_key_gen);
+
+    let arc = Arc::new(pub_keys_for_key_gen_btree);
+    let (sync_keygen, parts, acks) = generate_keygens(arc , &mut rng, (num_nodes_validators - 1) / 3);
 
     let mut reserved_peers = String::new();
     for keygen in sync_keygen.iter() {
@@ -355,6 +384,9 @@ fn main() {
 
     // Write the password file
     fs::write("password.txt", "test").expect("Unable to write password.txt file");
+
+    // only pass over enodes in the enodes_map that are also available for acks and parts.
+    // 
 
     fs::write(
         "keygen_history.json",
@@ -406,7 +438,13 @@ mod tests {
         let enodes_map = generate_enodes(num_nodes, None);
 
         let pub_keys = enodes_to_pub_keys(&enodes_map);
-        let (sync_keygen, _, _) = generate_keygens(pub_keys, &mut rng, (num_nodes - 1) / 3);
+        
+        let pub_keys_for_key_gen = key_pairs
+            .iter()
+            .take(num_nodes)
+            .collect();
+
+        let (sync_keygen, _, _) = generate_keygens(pub_keys_for_key_gen, &mut rng, (num_nodes - 1) / 3);
 
         let keygen = sync_keygen.iter().nth(0).unwrap();
         let toml_string = toml::to_string(&to_toml(

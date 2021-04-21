@@ -154,6 +154,9 @@ pub fn key_sync_history_data(
         data.ip_addresses
             .push(format!("{:?}", H128::from_low_u64_be(1)));
 
+        if !acks.get(id).is_some() { 
+            continue;
+        }
         // Append to parts vector
         let part = parts.get(id).unwrap();
         let serialized = bincode::serialize(part).expect("Part has to serialize");
