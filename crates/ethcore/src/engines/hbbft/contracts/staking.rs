@@ -39,7 +39,7 @@ pub fn start_time_of_next_phase_transition(client: &dyn EngineClient) -> Result<
 pub mod tests {
     use super::*;
     use crypto::publickey::{Generator, KeyPair, Public, Random};
-    use engines::hbbft::test::test_helpers::HbbftTestClient;
+    use engines::hbbft::test::hbbft_test_client::HbbftTestClient;
 
     pub fn min_staking(client: &dyn EngineClient) -> Result<U256, CallError> {
         let c = BoundContract::bind(client, BlockId::Latest, *STAKING_CONTRACT_ADDRESS);

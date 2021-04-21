@@ -1,6 +1,7 @@
+use super::create_transactions::{create_call, create_transaction, create_transfer};
 use client::traits::{Balance, StateOrBlock};
 use client::{BlockChainClient, ChainSyncing, Client, ImportExportBlocks};
-use crypto::publickey::KeyPair;
+use crypto::publickey::{Generator, KeyPair, Random};
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
 use miner::{Miner, MinerService};
@@ -11,7 +12,6 @@ use test_helpers::generate_dummy_client_with_spec;
 use test_helpers::TestNotify;
 use types::data_format::DataFormat;
 use types::ids::BlockId;
-use types::transaction::{Action, SignedTransaction, Transaction, TypedTransaction};
 
 pub fn hbbft_spec() -> Spec {
     Spec::load(
@@ -34,6 +34,7 @@ pub fn hbbft_client() -> std::sync::Arc<Client> {
     client
 }
 
+#[derive(Clone)]
 pub struct HbbftTestClient {
     pub client: Arc<Client>,
     pub notify: Arc<TestNotify>,
@@ -145,49 +146,8 @@ pub fn create_hbbft_client(keypair: KeyPair) -> HbbftTestClient {
     }
 }
 
-pub fn create_transaction(keypair: &KeyPair, nonce: &U256) -> SignedTransaction {
-    TypedTransaction::Legacy(Transaction {
-        action: Action::Call(Address::from_low_u64_be(5798439875)),
-        value: U256::zero(),
-        data: vec![],
-        gas: U256::from(100_000),
-        gas_price: "10000000000".into(),
-        nonce: *nonce,
-    })
-    .sign(keypair.secret(), None)
-}
-
-pub fn create_transfer(
-    keypair: &KeyPair,
-    receiver: &Address,
-    amount: &U256,
-    nonce: &U256,
-) -> SignedTransaction {
-    TypedTransaction::Legacy(Transaction {
-        action: Action::Call(receiver.clone()),
-        value: amount.clone(),
-        data: vec![],
-        gas: U256::from(100_000),
-        gas_price: "10000000000".into(),
-        nonce: *nonce,
-    })
-    .sign(keypair.secret(), None)
-}
-
-pub fn create_call(
-    keypair: &KeyPair,
-    receiver: &Address,
-    abi_call: ethabi::Bytes,
-    amount: &U256,
-    nonce: &U256,
-) -> SignedTransaction {
-    TypedTransaction::Legacy(Transaction {
-        action: Action::Call(receiver.clone()),
-        value: amount.clone(),
-        data: abi_call,
-        gas: U256::from(900_000),
-        gas_price: "10000000000".into(),
-        nonce: *nonce,
-    })
-    .sign(keypair.secret(), None)
+pub fn create_hbbft_clients(num_clients: u32, _funder: KeyPair) -> Vec<HbbftTestClient> {
+    (0..num_clients)
+        .map(|_| create_hbbft_client(Random.generate()))
+        .collect()
 }

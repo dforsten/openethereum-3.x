@@ -25,7 +25,7 @@ use blooms_db;
 use bytes::Bytes;
 use crypto::publickey::KeyPair;
 use db::KeyValueDB;
-use ethereum_types::{Address, H256, U256};
+use ethereum_types::{Address, H256, H512, U256};
 use evm::Factory as EvmFactory;
 use hash::keccak;
 use io::IoChannel;
@@ -619,6 +619,8 @@ pub fn get_bad_state_dummy_block() -> Bytes {
 pub struct TestNotify {
     /// Messages store
     pub messages: RwLock<Vec<Bytes>>,
+    /// Targeted messages store
+    pub targeted_messages: RwLock<Vec<(Bytes, Option<H512>)>>,
 }
 
 impl ChainNotify for TestNotify {
@@ -627,5 +629,12 @@ impl ChainNotify for TestNotify {
             ChainMessageType::Consensus(data) => data,
         };
         self.messages.write().push(data);
+    }
+
+    fn send(&self, message: ChainMessageType, node_id: Option<H512>) {
+        let data = match message {
+            ChainMessageType::Consensus(data) => data,
+        };
+        self.targeted_messages.write().push((data, node_id));
     }
 }

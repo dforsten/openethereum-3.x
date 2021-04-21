@@ -2,14 +2,16 @@ use super::contracts::staking::tests::{create_staker, is_pool_active};
 use super::contracts::staking::{get_posdao_epoch, start_time_of_next_phase_transition};
 use super::contracts::validator_set::{is_pending_validator, mining_by_staking_address};
 use super::contribution::unix_now_secs;
-use super::test::test_helpers::create_hbbft_client;
+use super::test::hbbft_test_client::{create_hbbft_client, create_hbbft_clients};
 use client::traits::BlockInfo;
 use crypto::publickey::{Generator, KeyPair, Random, Secret};
 use ethereum_types::{Address, U256};
 use std::str::FromStr;
 use types::ids::BlockId;
 
-pub mod test_helpers;
+pub mod create_transactions;
+pub mod hbbft_test_client;
+pub mod network_simulator;
 
 lazy_static! {
     static ref MASTER_OF_CEREMONIES_KEYPAIR: KeyPair = KeyPair::from_secret(
@@ -287,4 +289,19 @@ fn test_moc_to_first_validator() {
         validator_1.client.chain().best_block_number(),
         pre_block_nr + 1
     );
+}
+
+#[test]
+fn test_initialize_n_validators() {
+    let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
+
+    let funder: KeyPair = Random.generate();
+    moc.transfer_to(
+        &funder.address(),
+        &U256::from_dec_str("1000000000000000000000000").unwrap(),
+    );
+
+    let mut clients = create_hbbft_clients(2, funder);
+
+    network_simulator::crank_network(&mut clients);
 }
