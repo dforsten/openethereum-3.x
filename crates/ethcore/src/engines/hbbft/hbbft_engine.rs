@@ -459,7 +459,7 @@ impl HoneyBadgerBFT {
             let target_min_timestamp = block_header.timestamp() + self.params.minimum_block_time;
             let now = unix_now_secs();
             let queue_length = client.queued_transactions().len();
-            target_min_timestamp <= now
+            (self.params.minimum_block_time == 0 || target_min_timestamp <= now)
                 && queue_length >= self.params.transaction_queue_size_trigger
         } else {
             false
