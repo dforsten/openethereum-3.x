@@ -5,6 +5,7 @@ use crypto::publickey::{Generator, KeyPair, Random};
 use engines::signer::from_keypair;
 use ethereum_types::{Address, U256};
 use miner::{Miner, MinerService};
+use parking_lot::RwLock;
 use spec::Spec;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -146,8 +147,8 @@ pub fn create_hbbft_client(keypair: KeyPair) -> HbbftTestClient {
     }
 }
 
-pub fn create_hbbft_clients(num_clients: u32, _funder: KeyPair) -> Vec<HbbftTestClient> {
+pub fn create_hbbft_clients(num_clients: u32, _funder: KeyPair) -> Vec<RwLock<HbbftTestClient>> {
     (0..num_clients)
-        .map(|_| create_hbbft_client(Random.generate()))
+        .map(|_| RwLock::new(create_hbbft_client(Random.generate())))
         .collect()
 }

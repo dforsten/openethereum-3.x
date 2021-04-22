@@ -1,7 +1,8 @@
 use engines::hbbft::test::hbbft_test_client::HbbftTestClient;
+use parking_lot::RwLock;
 use std::collections::BTreeMap;
 
-pub fn crank_network(clients: &mut Vec<HbbftTestClient>) {
+pub fn crank_network(clients: &Vec<RwLock<HbbftTestClient>>) {
     // sync blocks
     sync_blocks(clients);
 
@@ -12,12 +13,13 @@ pub fn crank_network(clients: &mut Vec<HbbftTestClient>) {
     sync_consensus_messages(clients);
 }
 
-fn sync_blocks(clients: &mut Vec<HbbftTestClient>) {
+fn sync_blocks(clients: &Vec<RwLock<HbbftTestClient>>) {
     // Find client with most blocks.
     let best_client = clients
         .iter()
         .enumerate()
-        .fold((0, 0u64), |prev, (index, client)| {
+        .fold((0, 0u64), |prev, (index, locked)| {
+            let client = locked.read();
             // Get best block.
             let block_height = client.client.chain().best_block_number();
             // Check if best block is higher than current highest block.
@@ -28,37 +30,39 @@ fn sync_blocks(clients: &mut Vec<HbbftTestClient>) {
             }
         });
 
-    let best = clients.iter().nth(best_client.0).unwrap().clone();
+    let best = clients.iter().nth(best_client.0).unwrap().read();
 
-    for c in clients.iter_mut().enumerate() {
+    for c in clients.iter().enumerate() {
         if c.0 != best_client.0 {
-            best.sync_blocks_to(c.1);
+            best.sync_blocks_to(&mut c.1.write());
         }
     }
 }
 
-fn sync_transactions(clients: &mut Vec<HbbftTestClient>) {
-    for c in clients.iter() {
-        let cur = c.clone();
-        for c2 in clients.iter() {
-            let mut target = c2.clone();
-            cur.sync_transactions_to(&mut target);
+fn sync_transactions(clients: &Vec<RwLock<HbbftTestClient>>) {
+    for (n1, c1) in clients.iter().enumerate() {
+        let sharer = c1.read();
+        for (n2, c2) in clients.iter().enumerate() {
+            if n1 != n2 {
+                let mut target = c2.write();
+                sharer.sync_transactions_to(&mut target);
+            }
         }
     }
 }
 
-fn sync_consensus_messages(clients: &mut Vec<HbbftTestClient>) {
+fn sync_consensus_messages(clients: &Vec<RwLock<HbbftTestClient>>) {
     let clients_map = clients
         .iter()
-        .map(|c| (c.keypair.public().clone(), c))
+        .map(|c| (c.read().keypair.public().clone(), c))
         .collect::<BTreeMap<_, _>>();
 
     for (from, n) in &clients_map {
-        let mut targeted_messages = n.notify.targeted_messages.write();
-        for m in targeted_messages.drain(..) {
+        for m in n.read().notify.targeted_messages.write().drain(..) {
             clients_map
                 .get(&m.1.expect("The Message target node id must be set"))
                 .expect("Message target not found in nodes map")
+                .read()
                 .client
                 .engine()
                 .handle_message(&m.0, Some(*from))
