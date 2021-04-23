@@ -459,7 +459,7 @@ impl HoneyBadgerBFT {
             let target_min_timestamp = block_header.timestamp() + self.params.minimum_block_time;
             let now = unix_now_secs();
             let queue_length = client.queued_transactions().len();
-            target_min_timestamp <= now
+            (self.params.minimum_block_time == 0 || target_min_timestamp <= now)
                 && queue_length >= self.params.transaction_queue_size_trigger
         } else {
             false
@@ -803,7 +803,7 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
 #[cfg(test)]
 mod tests {
     use super::super::contribution::Contribution;
-    use super::super::test::test_helpers::create_transaction;
+    use super::super::test::create_transactions::create_transaction;
     use crypto::publickey::{Generator, Random};
     use ethereum_types::U256;
     use hbbft::honey_badger::{HoneyBadger, HoneyBadgerBuilder};

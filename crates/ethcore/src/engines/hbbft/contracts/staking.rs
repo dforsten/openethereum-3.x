@@ -38,8 +38,8 @@ pub fn start_time_of_next_phase_transition(client: &dyn EngineClient) -> Result<
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use engines::hbbft::test::test_helpers::HbbftTestClient;
     use crypto::publickey::{Generator, KeyPair, Public, Random};
+    use engines::hbbft::test::hbbft_test_client::HbbftTestClient;
 
     pub fn min_staking(client: &dyn EngineClient) -> Result<U256, CallError> {
         let c = BoundContract::bind(client, BlockId::Latest, *STAKING_CONTRACT_ADDRESS);
@@ -72,6 +72,7 @@ pub mod tests {
     /// * `extra_funds` - Should be sufficiently high to pay for transactions necessary to create the staking pool.  
     pub fn create_staker(
         moc: &mut HbbftTestClient,
+        funder: &KeyPair,
         miner: &HbbftTestClient,
         extra_funds: U256,
     ) -> KeyPair {
@@ -80,7 +81,7 @@ pub mod tests {
         let amount_to_transfer = min_staking_amount + extra_funds;
 
         let staker: KeyPair = Random.generate();
-        moc.transfer_to(&staker.address(), &amount_to_transfer);
+        moc.transfer(funder, &staker.address(), &amount_to_transfer);
 
         // Generate call data.
         let abi_bytes = add_pool(miner.address(), miner.keypair.public().clone());

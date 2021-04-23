@@ -2,14 +2,16 @@ use super::contracts::staking::tests::{create_staker, is_pool_active};
 use super::contracts::staking::{get_posdao_epoch, start_time_of_next_phase_transition};
 use super::contracts::validator_set::{is_pending_validator, mining_by_staking_address};
 use super::contribution::unix_now_secs;
-use super::test::test_helpers::create_hbbft_client;
+use super::test::hbbft_test_client::{create_hbbft_client, create_hbbft_clients};
 use client::traits::BlockInfo;
 use crypto::publickey::{Generator, KeyPair, Random, Secret};
 use ethereum_types::{Address, U256};
 use std::str::FromStr;
 use types::ids::BlockId;
 
-pub mod test_helpers;
+pub mod create_transactions;
+pub mod hbbft_test_client;
+pub mod network_simulator;
 
 lazy_static! {
     static ref MASTER_OF_CEREMONIES_KEYPAIR: KeyPair = KeyPair::from_secret(
@@ -69,7 +71,8 @@ fn test_staking_account_creation() {
     assert_eq!(moc.balance(&miner_1.address()), transaction_funds);
 
     // Create staking address
-    let staker_1 = create_staker(&mut moc, &miner_1, transaction_funds);
+    let funder = moc.keypair.clone();
+    let staker_1 = create_staker(&mut moc, &funder, &miner_1, transaction_funds);
 
     // Expect two new blocks to be created, one for the transfer of staking funds,
     // one for registering the staker as pool.
@@ -189,11 +192,116 @@ fn sync_two_validators() {
     // Sync blocks from moc to validator 1
     moc.sync_blocks_to(&mut validator_1);
 
-    // Verify the pending validator is now funded.
+    // Check if new blocks have been added to validator_1 client.
     assert_eq!(
         validator_1.balance(&transactor.address()),
         transaction_funds
     );
 
     moc.sync_transactions_to(&mut validator_1);
+}
+
+#[test]
+fn test_moc_to_first_validator() {
+    // Create MOC client
+    let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
+
+    // Create first validator client
+    let mut validator_1 = create_hbbft_client(Random.generate());
+
+    // To avoid performing external transactions with the MoC we create and fund a random address.
+    let transactor: KeyPair = Random.generate();
+
+    // Fund the transactor.
+    // Also triggers the creation of a block.
+    // This implicitly calls the block reward contract, which should trigger a phase transition
+    // since we already verified that the genesis transition time threshold has been reached.
+    moc.transfer_to(
+        &transactor.address(),
+        &U256::from_dec_str("1000000000000000000000000").unwrap(),
+    );
+
+    let transaction_funds = U256::from(9000000000000000000u64);
+    moc.transfer(&transactor, &validator_1.address(), &transaction_funds);
+
+    // Create first pool
+    // Create staking address
+    let _staker_1 = create_staker(&mut moc, &transactor, &validator_1, transaction_funds);
+
+    // Wait for moc keygen phase to finish
+    moc.create_some_transaction(Some(&transactor));
+    moc.create_some_transaction(Some(&transactor));
+    //moc.create_some_transaction(Some(&transactor));
+
+    // In the next block the POSDAO contracts realize they need to
+    // switch to the new validator.
+    moc.create_some_transaction(Some(&transactor));
+    // We need to create another block to give the new validator a chance
+    // to find out it is in the pending validator set.
+    moc.create_some_transaction(Some(&transactor));
+
+    // Now we should be part of the pending validator set.
+    assert!(
+        is_pending_validator(moc.client.as_ref(), &validator_1.address())
+            .expect("Constant call must succeed")
+    );
+    // ..and the MOC should not be a pending validator.
+    assert!(!is_pending_validator(moc.client.as_ref(), &moc.address())
+        .expect("Constant call must succeed"));
+
+    // Sync blocks from MOC to validator_1.
+    // On importing the last block validator_1 should realize he is the next
+    // validator and generate a Parts transaction.
+    moc.sync_blocks_to(&mut validator_1);
+
+    // validator_1 created a transaction to write its part, but it is not
+    // the current validator and cannot create a block.
+    // We need to gossip the transaction from validator_1 to the moc for a new block
+    // to be created, including the transaction from validator_1.
+    validator_1.sync_transactions_to(&mut moc);
+
+    // Write another dummy block to give validator_1 the chance to realize he wrote
+    // his Part already so he sends his Acks.
+    moc.create_some_transaction(Some(&transactor));
+
+    // At this point the transaction from validator_1 has written its Keygen part,
+    // and we need to sync the new blocks from moc to validator_1.
+    moc.sync_blocks_to(&mut validator_1);
+
+    // At this point validator_1 realizes his Part is included on the chain and
+    // generates a transaction to write it Acks.
+    // We need to gossip the transactions from validator_1 to the moc.
+    validator_1.sync_transactions_to(&mut moc);
+
+    // Create a dummy transaction for the moc to see the Acks on the chain state,
+    // and make him switch to the new validator.
+    moc.create_some_transaction(Some(&transactor));
+
+    // Sync blocks from moc to validator_1, which is now the only active validator.
+    moc.sync_blocks_to(&mut validator_1);
+
+    let pre_block_nr = validator_1.client.chain().best_block_number();
+
+    // Create a dummy transaction on the validator_1 client to verify it can create blocks.
+    validator_1.create_some_transaction(Some(&transactor));
+
+    assert_eq!(
+        validator_1.client.chain().best_block_number(),
+        pre_block_nr + 1
+    );
+}
+
+#[test]
+fn test_initialize_n_validators() {
+    let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
+
+    let funder: KeyPair = Random.generate();
+    moc.transfer_to(
+        &funder.address(),
+        &U256::from_dec_str("1000000000000000000000000").unwrap(),
+    );
+
+    let mut clients = create_hbbft_clients(2, funder);
+
+    network_simulator::crank_network(&mut clients);
 }

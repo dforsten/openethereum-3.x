@@ -58,7 +58,7 @@ impl Contribution {
 #[cfg(test)]
 mod tests {
     use crypto::publickey::{Generator, Random};
-    use engines::hbbft::test::test_helpers::create_transaction;
+    use engines::hbbft::test::create_transactions::create_transaction;
     use ethereum_types::U256;
     use types::transaction::{SignedTransaction, TypedTransaction};
 
