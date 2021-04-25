@@ -147,8 +147,15 @@ pub fn create_hbbft_client(keypair: KeyPair) -> HbbftTestClient {
     }
 }
 
-pub fn create_hbbft_clients(num_clients: u32, _funder: KeyPair) -> Vec<RwLock<HbbftTestClient>> {
-    (0..num_clients)
-        .map(|_| RwLock::new(create_hbbft_client(Random.generate())))
-        .collect()
+pub fn create_hbbft_clients(
+    moc: HbbftTestClient,
+    num_clients: u32,
+    _funder: &KeyPair,
+) -> Vec<RwLock<HbbftTestClient>> {
+    let mut clients = vec![RwLock::new(moc)];
+    for _ in 0..num_clients {
+        clients.push(RwLock::new(create_hbbft_client(Random.generate())));
+    }
+
+    clients
 }

@@ -296,12 +296,30 @@ fn test_initialize_n_validators() {
     let mut moc = create_hbbft_client(MASTER_OF_CEREMONIES_KEYPAIR.clone());
 
     let funder: KeyPair = Random.generate();
-    moc.transfer_to(
-        &funder.address(),
-        &U256::from_dec_str("1000000000000000000000000").unwrap(),
+    let fund_amount = U256::from_dec_str("1000000000000000000000000").unwrap();
+    moc.transfer_to(&funder.address(), &fund_amount);
+
+    let mut clients = create_hbbft_clients(moc, 2, &funder);
+    
+    assert_eq!(
+        clients
+            .iter()
+            .nth(1)
+            .unwrap()
+            .read()
+            .balance(&funder.address()),
+        U256::zero()
     );
 
-    let mut clients = create_hbbft_clients(2, funder);
-
     network_simulator::crank_network(&mut clients);
+
+    assert_eq!(
+        clients
+            .iter()
+            .nth(1)
+            .unwrap()
+            .read()
+            .balance(&funder.address()),
+        fund_amount
+    );
 }
