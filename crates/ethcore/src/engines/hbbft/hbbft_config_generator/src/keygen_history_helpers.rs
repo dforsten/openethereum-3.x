@@ -145,6 +145,12 @@ pub fn key_sync_history_data(
     let mut staking_counter = 1;
     // Add Parts and Acks in strict order
     for id in ids {
+        // if there is no part available for this node,
+        // then the it is not a initial validator.
+        if !parts.get(id).is_some() {
+            continue;
+        }
+
         data.validators.push(format!("{:?}", public_to_address(id)));
         data.staking_addresses
             .push(format!("{:?}", Address::from_low_u64_be(staking_counter)));
@@ -154,9 +160,6 @@ pub fn key_sync_history_data(
         data.ip_addresses
             .push(format!("{:?}", H128::from_low_u64_be(1)));
 
-        if !acks.get(id).is_some() { 
-            continue;
-        }
         // Append to parts vector
         let part = parts.get(id).unwrap();
         let serialized = bincode::serialize(part).expect("Part has to serialize");

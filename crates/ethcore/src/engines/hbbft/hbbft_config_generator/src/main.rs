@@ -89,6 +89,14 @@ fn generate_enodes(
             },
         );
     }
+    // the map has the element order by their public key.
+    // we reassign the idx here, so the index of the nodes follows
+    // the same order like everything else.
+    let mut new_index = 1;
+    for public in map.iter_mut() {
+        public.1.idx = new_index;
+        new_index = new_index + 1;
+    }
     map
 }
 
@@ -307,7 +315,10 @@ fn main() {
         .parse()
         .expect("total_nodes must be of integer type");
 
-    assert!(num_nodes_total >= num_nodes_validators, "max_nodes must be greater than nodes");
+    assert!(
+        num_nodes_total >= num_nodes_validators,
+        "max_nodes must be greater than nodes"
+    );
 
     println!("generating config files for {} nodes in total, with the first {} nodes as initial validator", num_nodes_total, num_nodes_validators);
 
@@ -335,24 +346,24 @@ fn main() {
     let pub_keys = enodes_to_pub_keys(&enodes_map);
 
     // we only need the first x pub_keys
-    let mut pub_keys_for_key_gen = pub_keys
+    let pub_keys_for_key_gen_btree = pub_keys
         .iter()
         .take(num_nodes_validators)
         .map(|x| (x.0.clone(), x.1.clone()))
         .collect();
 
-    let mut pub_keys_for_key_gen_btree = BTreeMap::new();
-
-    pub_keys_for_key_gen_btree.append(&mut pub_keys_for_key_gen);
-
-    let arc = Arc::new(pub_keys_for_key_gen_btree);
-    let (sync_keygen, parts, acks) = generate_keygens(arc , &mut rng, (num_nodes_validators - 1) / 3);
+    let (_sync_keygen, parts, acks) = generate_keygens(
+        Arc::new(pub_keys_for_key_gen_btree),
+        &mut rng,
+        (num_nodes_validators - 1) / 3,
+    );
 
     let mut reserved_peers = String::new();
-    for keygen in sync_keygen.iter() {
-        let enode = enodes_map
-            .get(keygen.our_id())
-            .expect("validator id must be mapped");
+
+    for pub_key in pub_keys.iter() {
+        let our_id = pub_key.0;
+
+        let enode = enodes_map.get(our_id).expect("validator id must be mapped");
         writeln!(&mut reserved_peers, "{}", enode.to_string())
             .expect("enode should be written to the reserved peers string");
         let i = enode.idx;
@@ -386,7 +397,7 @@ fn main() {
     fs::write("password.txt", "test").expect("Unable to write password.txt file");
 
     // only pass over enodes in the enodes_map that are also available for acks and parts.
-    // 
+    //
 
     fs::write(
         "keygen_history.json",
@@ -438,13 +449,11 @@ mod tests {
         let enodes_map = generate_enodes(num_nodes, None);
 
         let pub_keys = enodes_to_pub_keys(&enodes_map);
-        
-        let pub_keys_for_key_gen = key_pairs
-            .iter()
-            .take(num_nodes)
-            .collect();
 
-        let (sync_keygen, _, _) = generate_keygens(pub_keys_for_key_gen, &mut rng, (num_nodes - 1) / 3);
+        let pub_keys_for_key_gen = pub_keys.iter().take(num_nodes).collect();
+
+        let (sync_keygen, _, _) =
+            generate_keygens(pub_keys_for_key_gen, &mut rng, (num_nodes - 1) / 3);
 
         let keygen = sync_keygen.iter().nth(0).unwrap();
         let toml_string = toml::to_string(&to_toml(
