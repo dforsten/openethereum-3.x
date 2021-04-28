@@ -401,9 +401,15 @@ fn main() {
 
     fs::write(
         "keygen_history.json",
-        key_sync_history_data(parts, acks, enodes_map),
+        key_sync_history_data(&parts, &acks, &enodes_map, true),
     )
     .expect("Unable to write keygen history data file");
+
+    fs::write(
+        "nodes_info.json",
+        key_sync_history_data(&parts, &acks, &enodes_map, false),
+    )
+    .expect("Unable to write nodes_info data file");
 }
 
 #[cfg(test)]

@@ -123,9 +123,10 @@ struct KeyGenHistoryData {
 }
 
 pub fn key_sync_history_data(
-    parts: BTreeMap<Public, Part>,
-    acks: BTreeMap<Public, Vec<PartOutcome>>,
-    enodes: BTreeMap<Public, Enode>,
+    parts: &BTreeMap<Public, Part>,
+    acks: &BTreeMap<Public, Vec<PartOutcome>>,
+    enodes: &BTreeMap<Public, Enode>,
+    include_validators_only: bool,
 ) -> String {
     let mut data = KeyGenHistoryData {
         validators: Vec::new(),
@@ -147,7 +148,9 @@ pub fn key_sync_history_data(
     for id in ids {
         // if there is no part available for this node,
         // then the it is not a initial validator.
-        if !parts.get(id).is_some() {
+
+        let is_validator = parts.get(id).is_some();
+        if include_validators_only && !is_validator {
             continue;
         }
 
@@ -160,6 +163,9 @@ pub fn key_sync_history_data(
         data.ip_addresses
             .push(format!("{:?}", H128::from_low_u64_be(1)));
 
+        if !is_validator {
+            continue;
+        }
         // Append to parts vector
         let part = parts.get(id).unwrap();
         let serialized = bincode::serialize(part).expect("Part has to serialize");
