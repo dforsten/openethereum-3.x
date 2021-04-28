@@ -2353,9 +2353,13 @@ impl BlockChainClient for Client {
         Some(keys)
     }
 
-    fn transaction(&self, id: TransactionId) -> Option<LocalizedTransaction> {
+    fn block_transaction(&self, id: TransactionId) -> Option<LocalizedTransaction> {
         self.transaction_address(id)
             .and_then(|address| self.chain.read().transaction(&address))
+    }
+
+    fn queued_transaction(&self, hash: H256) -> Option<Arc<VerifiedTransaction>> {
+        self.importer.miner.transaction(&hash)
     }
 
     fn uncle(&self, id: UncleId) -> Option<encoded::Header> {
@@ -3064,11 +3068,11 @@ impl super::traits::EngineClient for Client {
     }
 
     fn block_number(&self, id: BlockId) -> Option<BlockNumber> {
-        BlockChainClient::block_number(self, id)
+        <dyn BlockChainClient>::block_number(self, id)
     }
 
     fn block_header(&self, id: BlockId) -> Option<encoded::Header> {
-        BlockChainClient::block_header(self, id)
+        <dyn BlockChainClient>::block_header(self, id)
     }
 
     fn queued_transactions(&self) -> Vec<Arc<VerifiedTransaction>> {

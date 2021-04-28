@@ -24,21 +24,14 @@ pub const PAYLOAD_SOFT_LIMIT: usize = 100_000;
 use enum_primitive::FromPrimitive;
 use ethereum_types::{H256, H512};
 use network::{self, PeerId};
+use parking_lot::RwLock;
 use rlp::{Rlp, RlpStream};
-use std::{cmp, sync::RwLock as StdRwLock};
+use std::cmp;
 use types::{ids::BlockId, BlockNumber};
 
 use sync_io::SyncIo;
 
-use super::sync_packet::{
-    PacketInfo, SyncPacket,
-    SyncPacket::{
-        BlockBodiesPacket, BlockHeadersPacket, ConsensusDataPacket, GetBlockBodiesPacket,
-        GetBlockHeadersPacket, GetReceiptsPacket, GetSnapshotDataPacket, GetSnapshotManifestPacket,
-        ReceiptsPacket, SnapshotDataPacket, SnapshotManifestPacket, StatusPacket,
-        TransactionsPacket,
-    },
-};
+use super::sync_packet::{PacketInfo, SyncPacket, SyncPacket::*};
 
 use super::{
     ChainSync, PacketProcessError, RlpResponseResult, SyncHandler, MAX_BODIES_TO_SEND,
@@ -53,7 +46,7 @@ impl SyncSupplier {
     // Take a u8 and not a SyncPacketId because this is the entry point
     // to chain sync from the outside world.
     pub fn dispatch_packet(
-        sync: &StdRwLock<ChainSync>,
+        sync: &RwLock<ChainSync>,
         io: &mut dyn SyncIo,
         peer: PeerId,
         packet_id: u8,
@@ -64,6 +57,14 @@ impl SyncSupplier {
 
         if let Some(id) = SyncPacket::from_u8(packet_id) {
             let result = match id {
+                GetPooledTransactionsPacket => SyncSupplier::return_rlp(
+                    io,
+                    &rlp,
+                    peer,
+                    SyncSupplier::return_pooled_transactions,
+                    |e| format!("Error sending pooled transactions: {:?}", e),
+                ),
+
                 GetBlockBodiesPacket => SyncSupplier::return_rlp(
                     io,
                     &rlp,
@@ -102,12 +103,12 @@ impl SyncSupplier {
                 ),
 
                 StatusPacket => {
-                    sync.write().unwrap().on_packet(io, peer, packet_id, data);
+                    sync.write().on_packet(io, peer, packet_id, data);
                     Ok(())
                 }
                 // Packets that require the peer to be confirmed
                 _ => {
-                    if !sync.read().unwrap().peers.contains_key(&peer) {
+                    if !sync.read().peers.contains_key(&peer) {
                         debug!(target:"sync", "Unexpected packet {} from unregistered peer: {}:{}", packet_id, peer, io.peer_version(peer));
                         return;
                     }
@@ -119,17 +120,17 @@ impl SyncSupplier {
                         }
                         TransactionsPacket => {
                             let res = {
-                                let sync_ro = sync.read().unwrap();
+                                let sync_ro = sync.read();
                                 SyncHandler::on_peer_transactions(&*sync_ro, io, peer, &rlp)
                             };
                             if res.is_err() {
                                 // peer sent invalid data, disconnect.
                                 io.disable_peer(peer);
-                                sync.write().unwrap().deactivate_peer(io, peer);
+                                sync.write().deactivate_peer(io, peer);
                             }
                         }
                         _ => {
-                            sync.write().unwrap().on_packet(io, peer, packet_id, data);
+                            sync.write().on_packet(io, peer, packet_id, data);
                         }
                     }
 
@@ -141,10 +142,9 @@ impl SyncSupplier {
                 Err(PacketProcessError::Decoder(e)) => {
                     debug!(target:"sync", "{} -> Malformed packet {} : {}", peer, packet_id, e)
                 }
-                Err(PacketProcessError::ClientBusy) => sync
-                    .write()
-                    .unwrap()
-                    .add_delayed_request(peer, packet_id, data),
+                Err(PacketProcessError::ClientBusy) => {
+                    sync.write().add_delayed_request(peer, packet_id, data)
+                }
                 Ok(()) => {}
             }
         }
@@ -153,7 +153,7 @@ impl SyncSupplier {
     /// Dispatch delayed request
     /// The main difference with dispatch packet is the direct send of the responses to the peer
     pub fn dispatch_delayed_request(
-        sync: &StdRwLock<ChainSync>,
+        sync: &RwLock<ChainSync>,
         io: &mut dyn SyncIo,
         peer: PeerId,
         packet_id: u8,
@@ -181,10 +181,9 @@ impl SyncSupplier {
                 Err(PacketProcessError::Decoder(e)) => {
                     debug!(target:"sync", "{} -> Malformed packet {} : {}", peer, packet_id, e)
                 }
-                Err(PacketProcessError::ClientBusy) => sync
-                    .write()
-                    .unwrap()
-                    .add_delayed_request(peer, packet_id, data),
+                Err(PacketProcessError::ClientBusy) => {
+                    sync.write().add_delayed_request(peer, packet_id, data)
+                }
                 Ok(()) => {}
             }
         }
@@ -275,6 +274,28 @@ impl SyncSupplier {
         rlp.append_raw(&data, count as usize);
         trace!(target: "sync", "{} -> GetBlockHeaders: returned {} entries", peer_id, count);
         Ok(Some((BlockHeadersPacket, rlp)))
+    }
+
+    /// Respond to GetPooledTransactions request
+    fn return_pooled_transactions(io: &dyn SyncIo, r: &Rlp, peer_id: PeerId) -> RlpResponseResult {
+        let mut added = 0;
+        let mut rlp = RlpStream::new();
+        rlp.begin_unbounded_list();
+        for v in r {
+            if let Ok(hash) = v.as_val::<H256>() {
+                if let Some(tx) = io.chain().queued_transaction(hash) {
+                    tx.signed().rlp_append(&mut rlp);
+                    added += 1;
+                    if rlp.len() > PAYLOAD_SOFT_LIMIT {
+                        break;
+                    }
+                }
+            }
+        }
+        rlp.finalize_unbounded_list();
+
+        trace!(target: "sync", "{} -> GetPooledTransactions: returned {} entries", peer_id, added);
+        Ok(Some((PooledTransactionsPacket, rlp)))
     }
 
     /// Respond to GetBlockBodies request
@@ -424,7 +445,7 @@ mod test {
     use ethereum_types::H256;
     use parking_lot::RwLock;
     use rlp::{Rlp, RlpStream};
-    use std::{collections::VecDeque, str::FromStr, sync::RwLock as StdRwLock};
+    use std::{collections::VecDeque, str::FromStr};
     use tests::{helpers::TestIo, snapshot::TestSnapshotService};
 
     #[test]
@@ -652,7 +673,7 @@ mod test {
 
         io.sender = Some(2usize);
         SyncSupplier::dispatch_packet(
-            &StdRwLock::new(sync),
+            &RwLock::new(sync),
             &mut io,
             0usize,
             GetReceiptsPacket.id(),
