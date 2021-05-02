@@ -225,6 +225,20 @@ impl<'s> NetworkContextTrait for NetworkContext<'s> {
             .map(|node| self.reserved_peers.contains(&node))
             .unwrap_or(false)
     }
+
+    fn node_id_to_peer_id(&self, node_id: NodeId) -> Option<PeerId> {
+        let sessions = self.sessions.read();
+        let sessions = &*sessions;
+
+        for i in (0..MAX_SESSIONS).map(|x| x + FIRST_SESSION) {
+            if let Some(session) = sessions.get(i) {
+                if session.lock().info.id == Some(node_id) {
+                    return Some(i);
+                }
+            }
+        }
+        None
+    }
 }
 
 /// Shared host information

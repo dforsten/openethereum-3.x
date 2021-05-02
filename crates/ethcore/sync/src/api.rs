@@ -20,7 +20,7 @@ use devp2p::NetworkService;
 use network::{
     client_version::ClientVersion, ConnectionFilter, Error, ErrorKind,
     NetworkConfiguration as BasicNetworkConfiguration, NetworkContext, NetworkProtocolHandler,
-    NonReservedPeerMode, PeerId, ProtocolId,
+    NodeId, NonReservedPeerMode, PeerId, ProtocolId,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -49,7 +49,7 @@ use std::{
     net::{AddrParseError, SocketAddr},
     str::FromStr,
 };
-use sync_io::NetSyncIo;
+use sync_io::{NetSyncIo, SyncIo};
 use types::{
     creation_status::CreationStatus, restoration_status::RestorationStatus,
     transaction::UnverifiedTransaction, BlockNumber,
@@ -433,6 +433,7 @@ const CONTINUE_SYNC_TIMER: TimerToken = 2;
 const TX_TIMER: TimerToken = 3;
 const PRIORITY_TIMER: TimerToken = 4;
 const DELAYED_PROCESSING_TIMER: TimerToken = 5;
+const CONSENSUS_SEND_RETRY_TIMER: TimerToken = 6;
 
 pub(crate) const PRIORITY_TIMER_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -449,6 +450,49 @@ struct SyncProtocolHandler {
     message_cache: RwLock<HashMap<Option<H512>, Vec<ChainMessageType>>>,
 }
 
+impl SyncProtocolHandler {
+    fn try_resend_consensus_messages(&self, nc: &dyn NetworkContext) {
+        let pub_keys: Vec<_> = self
+            .message_cache
+            .read()
+            .keys()
+            .filter(|k| k.is_some())
+            .map(|k| k.unwrap())
+            .collect();
+
+        let mut sync_io = NetSyncIo::new(nc, &*self.chain, &*self.snapshot_service, &self.overlay);
+
+        for node_id in pub_keys.iter() {
+            if let Some(peer_id) = nc.node_id_to_peer_id(*node_id) {
+                let found_peers = self.sync.peer_info(&[peer_id]);
+                if let Some(_) = found_peers.first() {
+                    self.send_cached_consensus_messages_for(&mut sync_io, node_id, peer_id);
+                }
+            }
+        }
+    }
+
+    fn send_cached_consensus_messages_for(
+        &self,
+        sync_io: &mut dyn SyncIo,
+        node_id: &NodeId,
+        peer_id: PeerId,
+    ) {
+        // now since we are connected, lets send any cached messages
+        if let Some(vec_msg) = self.message_cache.write().remove(&Some(*node_id)) {
+            trace!(target: "consensus", "Cached Messages: Trying to send cached messages to {:?}", node_id);
+            for msg in vec_msg {
+                match msg {
+                    ChainMessageType::Consensus(message) => self
+                        .sync
+                        .write()
+                        .send_consensus_packet(sync_io, message, peer_id),
+                }
+            }
+        }
+    }
+}
+
 impl NetworkProtocolHandler for SyncProtocolHandler {
     fn initialize(&self, io: &dyn NetworkContext) {
         if io.subprotocol_name() != PAR_PROTOCOL {
@@ -462,9 +506,10 @@ impl NetworkProtocolHandler for SyncProtocolHandler {
                 .expect("Error registering transactions timer");
             io.register_timer(DELAYED_PROCESSING_TIMER, Duration::from_millis(2100))
                 .expect("Error registering delayed processing timer");
-
             io.register_timer(PRIORITY_TIMER, PRIORITY_TIMER_INTERVAL)
                 .expect("Error registering peers timer");
+            io.register_timer(CONSENSUS_SEND_RETRY_TIMER, Duration::from_millis(1700))
+                .expect("Error registering consensus message retry timer");
         }
     }
 
@@ -494,19 +539,6 @@ impl NetworkProtocolHandler for SyncProtocolHandler {
         if warp_protocol == warp_context {
             self.sync.write().on_peer_connected(&mut sync_io, *peer);
         }
-
-        // now since we are connected, lets send any cached messages also
-        if let Some(vec_msg) = self.message_cache.write().remove(&node_id) {
-            trace!(target: "consensus", "Cached Messages: Trying to send cached messages to {:?}", node_id);
-            for msg in vec_msg {
-                match msg {
-                    ChainMessageType::Consensus(message) => self
-                        .sync
-                        .write()
-                        .send_consensus_packet(&mut sync_io, message, *peer),
-                }
-            }
-        }
     }
 
     fn disconnected(&self, io: &dyn NetworkContext, peer: &PeerId) {
@@ -522,9 +554,9 @@ impl NetworkProtocolHandler for SyncProtocolHandler {
         }
     }
 
-    fn timeout(&self, io: &dyn NetworkContext, timer: TimerToken) {
+    fn timeout(&self, nc: &dyn NetworkContext, timer: TimerToken) {
         trace_time!("sync::timeout");
-        let mut io = NetSyncIo::new(io, &*self.chain, &*self.snapshot_service, &self.overlay);
+        let mut io = NetSyncIo::new(nc, &*self.chain, &*self.snapshot_service, &self.overlay);
         match timer {
             PEERS_TIMER => self.sync.write().maintain_peers(&mut io),
             MAINTAIN_SYNC_TIMER => self.sync.write().maintain_sync(&mut io),
@@ -532,6 +564,7 @@ impl NetworkProtocolHandler for SyncProtocolHandler {
             TX_TIMER => self.sync.write().propagate_new_transactions(&mut io),
             PRIORITY_TIMER => self.sync.process_priority_queue(&mut io),
             DELAYED_PROCESSING_TIMER => self.sync.process_delayed_requests(&mut io),
+            CONSENSUS_SEND_RETRY_TIMER => self.try_resend_consensus_messages(nc),
             _ => warn!("Unknown timer {} triggered.", timer),
         }
     }
