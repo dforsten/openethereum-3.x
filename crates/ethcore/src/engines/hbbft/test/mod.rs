@@ -300,7 +300,7 @@ fn test_initialize_n_validators() {
     moc.transfer_to(&funder.address(), &fund_amount);
 
     let mut clients = create_hbbft_clients(moc, 2, &funder);
-    
+
     assert_eq!(
         clients
             .iter()

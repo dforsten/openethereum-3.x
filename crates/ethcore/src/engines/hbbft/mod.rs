@@ -4,9 +4,9 @@ mod contribution;
 mod hbbft_engine;
 mod hbbft_state;
 mod sealing;
-mod utils;
 #[cfg(test)]
 mod test;
+mod utils;
 
 pub use self::hbbft_engine::HoneyBadgerBFT;
 

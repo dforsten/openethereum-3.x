@@ -6,7 +6,10 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use types::ids::BlockId;
 
-use_contract!(validator_set_hbbft, "res/contracts/validator_set_hbbft.json");
+use_contract!(
+    validator_set_hbbft,
+    "res/contracts/validator_set_hbbft.json"
+);
 
 lazy_static! {
     static ref VALIDATOR_SET_ADDRESS: Address =

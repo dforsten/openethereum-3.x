@@ -549,10 +549,14 @@ pub trait Engine<M: Machine>: Sync + Send {
     }
 
     /// Whether the miner should prepare blocks for sealing for this engine.
-    fn should_miner_prepare_blocks(&self) -> bool { true }
+    fn should_miner_prepare_blocks(&self) -> bool {
+        true
+    }
 
     /// Use the author as signer as well as block author.
-    fn use_block_author(&self) -> bool { true }
+    fn use_block_author(&self) -> bool {
+        true
+    }
 }
 
 /// t_nb 9.3 Check whether a given block is the best block based on the default total difficulty rule.
