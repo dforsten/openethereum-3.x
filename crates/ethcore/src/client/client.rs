@@ -358,8 +358,10 @@ impl Importer {
                             .accrue_block(&header, transactions_len);
                     }
                     Err(err) => {
-                        self.bad_blocks.report(bytes, format!("{:?}", err));
-                        invalid_blocks.insert(hash);
+                        if err.description() != "Block is ancient" {
+                            self.bad_blocks.report(bytes, format!("{:?}", err));
+                            invalid_blocks.insert(hash);
+                        }
                     }
                 }
             }
