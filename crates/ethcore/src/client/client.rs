@@ -522,8 +522,14 @@ impl Importer {
             .verifier
             .verify_block_final(&header, &locked_block.header)
         {
-            warn!(target: "client", "Stage 5 block verification failed for #{} ({})\nError: {:?}", header.number(), header.hash(), e);
-            bail!(e);
+            let best_block_number = client.chain.read().best_block_number();
+            if best_block_number >= header.number() {
+                warn!(target: "client", "Stage 5 verification failed for #{} ({})\nBlock is ancient (current best block: #{}).", header.number(), header.hash(), best_block_number);
+                bail!("Block is ancient");
+            } else {
+                warn!(target: "client", "Stage 5 block verification failed for #{} ({})\nError: {:?}", header.number(), header.hash(), e);
+                bail!(e);
+            }
         }
 
         let pending = self.check_epoch_end_signal(
