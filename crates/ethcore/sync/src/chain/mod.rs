@@ -184,7 +184,7 @@ const MAX_SNAPSHOT_CHUNKS_DOWNLOAD_AHEAD: usize = 3;
 
 const WAIT_PEERS_TIMEOUT: Duration = Duration::from_secs(5);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(5);
-const HEADERS_TIMEOUT: Duration = Duration::from_secs(15);
+const HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
 const BODIES_TIMEOUT: Duration = Duration::from_secs(20);
 const RECEIPTS_TIMEOUT: Duration = Duration::from_secs(10);
 const POOLED_TRANSACTIONS_TIMEOUT: Duration = Duration::from_secs(10);
@@ -1417,19 +1417,68 @@ impl ChainSync {
         for (peer_id, peer) in &self.peers {
             let elapsed = tick - peer.ask_time;
             let timeout = match peer.asking {
-                PeerAsking::BlockHeaders => elapsed > HEADERS_TIMEOUT,
-                PeerAsking::BlockBodies => elapsed > BODIES_TIMEOUT,
-                PeerAsking::BlockReceipts => elapsed > RECEIPTS_TIMEOUT,
-                PeerAsking::PooledTransactions => elapsed > POOLED_TRANSACTIONS_TIMEOUT,
+                PeerAsking::BlockHeaders => {
+                    if elapsed > HEADERS_TIMEOUT {
+                        debug!(target:"sync", "HEADERS_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                PeerAsking::BlockBodies => {
+                    if elapsed > BODIES_TIMEOUT {
+                        debug!(target:"sync", "BODIES_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                PeerAsking::BlockReceipts => {
+                    if elapsed > RECEIPTS_TIMEOUT {
+                        debug!(target:"sync", "RECEIPTS_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                PeerAsking::PooledTransactions => {
+                    if elapsed > POOLED_TRANSACTIONS_TIMEOUT {
+                        debug!(target:"sync", "POOLED_TRANSACTIONS_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
                 PeerAsking::Nothing => false,
-                PeerAsking::ForkHeader => elapsed > FORK_HEADER_TIMEOUT,
-                PeerAsking::SnapshotManifest => elapsed > SNAPSHOT_MANIFEST_TIMEOUT,
-                PeerAsking::SnapshotData => elapsed > SNAPSHOT_DATA_TIMEOUT,
+                PeerAsking::ForkHeader => {
+                    if elapsed > FORK_HEADER_TIMEOUT {
+                        debug!(target:"sync", "FORK_HEADER_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                PeerAsking::SnapshotManifest => {
+                    if elapsed > SNAPSHOT_MANIFEST_TIMEOUT {
+                        debug!(target:"sync", "SNAPSHOT_MANIFEST_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                PeerAsking::SnapshotData => {
+                    if elapsed > SNAPSHOT_DATA_TIMEOUT {
+                        debug!(target:"sync", "SNAPSHOT_DATA_TIMEOUT {:?}", elapsed);
+                        true
+                    } else {
+                        false
+                    }
+                }
             };
             if timeout {
                 debug!(target:"sync", "Timeout {}", peer_id);
-                io.disconnect_peer(*peer_id);
-                aborting.push(*peer_id);
+                //io.disconnect_peer(*peer_id);
+                //aborting.push(*peer_id);
             }
         }
         for p in aborting {
