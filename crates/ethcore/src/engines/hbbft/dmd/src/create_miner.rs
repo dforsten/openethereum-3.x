@@ -54,4 +54,6 @@ pub fn create_miner() {
             .expect("Could not convert the JSON account path to a string"),
     );
     fs::write("password.txt", "test").expect("Unable to write password.txt file");
+
+    println!("The address of your new miner: {:?}", acc.2);
 }
