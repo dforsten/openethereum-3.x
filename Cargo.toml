@@ -130,5 +130,6 @@ members = [
 	"bin/ethstore",
 	"bin/evmbin",
 	"bin/chainspec",
-	"crates/ethcore/src/engines/hbbft/hbbft_config_generator"
+	"crates/ethcore/src/engines/hbbft/hbbft_config_generator",
+	"crates/ethcore/src/engines/hbbft/dmd"
 ]
