@@ -2,8 +2,7 @@ use client::traits::EngineClient;
 use crypto::publickey::Public;
 use engines::hbbft::utils::bound_contract::{BoundContract, CallError};
 use ethereum_types::Address;
-use std::collections::BTreeMap;
-use std::str::FromStr;
+use std::{collections::BTreeMap, str::FromStr};
 use types::ids::BlockId;
 
 use_contract!(

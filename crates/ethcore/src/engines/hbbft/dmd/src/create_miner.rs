@@ -1,8 +1,6 @@
 use ethstore::{KeyFile, SafeAccount};
 use parity_crypto::publickey::{Generator, KeyPair, Random, Secret};
-use std::fs;
-use std::num::NonZeroU32;
-use std::path::Path;
+use std::{fs, num::NonZeroU32, path::Path};
 
 fn write_json_for_secret(secret: Secret, filename: &str) {
     let json_key: KeyFile = SafeAccount::create(

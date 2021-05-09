@@ -1,19 +1,23 @@
 use client::traits::EngineClient;
 use engines::signer::EngineSigner;
-use hbbft::crypto::{PublicKey, Signature};
-use hbbft::honey_badger::{self, HoneyBadgerBuilder};
-use hbbft::{Epoched, NetworkInfo};
+use hbbft::{
+    crypto::{PublicKey, Signature},
+    honey_badger::{self, HoneyBadgerBuilder},
+    Epoched, NetworkInfo,
+};
 use parking_lot::RwLock;
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use types::header::Header;
-use types::ids::BlockId;
+use std::{collections::BTreeMap, sync::Arc};
+use types::{header::Header, ids::BlockId};
 
-use super::contracts::keygen_history::{initialize_synckeygen, synckeygen_to_network_info};
-use super::contracts::staking::{get_posdao_epoch, get_posdao_epoch_start};
-use super::contracts::validator_set::ValidatorType;
-use super::contribution::Contribution;
-use super::NodeId;
+use super::{
+    contracts::{
+        keygen_history::{initialize_synckeygen, synckeygen_to_network_info},
+        staking::{get_posdao_epoch, get_posdao_epoch_start},
+        validator_set::ValidatorType,
+    },
+    contribution::Contribution,
+    NodeId,
+};
 
 pub type HbMessage = honey_badger::Message<NodeId>;
 pub(crate) type HoneyBadger = honey_badger::HoneyBadger<Contribution, NodeId>;

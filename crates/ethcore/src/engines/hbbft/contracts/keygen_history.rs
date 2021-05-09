@@ -1,23 +1,28 @@
 use client::traits::{EngineClient, TransactionRequest};
-use crypto;
-use crypto::publickey::Public;
-use engines::hbbft::contracts::staking::get_posdao_epoch;
-use engines::hbbft::contracts::validator_set::{get_validator_pubkeys, ValidatorType};
-use engines::hbbft::utils::bound_contract::{BoundContract, CallError};
-use engines::hbbft::NodeId;
-use engines::signer::EngineSigner;
-use ethereum_types::{Address, H512, U256};
-use hbbft::crypto::{PublicKeySet, SecretKeyShare};
-use hbbft::sync_key_gen::{
-    Ack, AckOutcome, Error, Part, PartOutcome, PubKeyMap, PublicKey, SecretKey, SyncKeyGen,
+use crypto::{self, publickey::Public};
+use engines::{
+    hbbft::{
+        contracts::{
+            staking::get_posdao_epoch,
+            validator_set::{get_validator_pubkeys, ValidatorType},
+        },
+        utils::bound_contract::{BoundContract, CallError},
+        NodeId,
+    },
+    signer::EngineSigner,
 };
-use hbbft::util::max_faulty;
-use hbbft::NetworkInfo;
+use ethereum_types::{Address, H512, U256};
+use hbbft::{
+    crypto::{PublicKeySet, SecretKeyShare},
+    sync_key_gen::{
+        Ack, AckOutcome, Error, Part, PartOutcome, PubKeyMap, PublicKey, SecretKey, SyncKeyGen,
+    },
+    util::max_faulty,
+    NetworkInfo,
+};
 use itertools::Itertools;
 use parking_lot::RwLock;
-use std::collections::BTreeMap;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 use types::ids::BlockId;
 
 use_contract!(
@@ -318,8 +323,7 @@ mod tests {
     use super::*;
     use crypto::publickey::{KeyPair, Secret};
     use engines::signer::{from_keypair, EngineSigner};
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
+    use std::{collections::BTreeMap, sync::Arc};
 
     #[test]
     fn test_synckeygen_initialization() {

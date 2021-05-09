@@ -1,8 +1,14 @@
-use super::contracts::staking::tests::{create_staker, is_pool_active};
-use super::contracts::staking::{get_posdao_epoch, start_time_of_next_phase_transition};
-use super::contracts::validator_set::{is_pending_validator, mining_by_staking_address};
-use super::contribution::unix_now_secs;
-use super::test::hbbft_test_client::{create_hbbft_client, create_hbbft_clients};
+use super::{
+    contracts::{
+        staking::{
+            get_posdao_epoch, start_time_of_next_phase_transition,
+            tests::{create_staker, is_pool_active},
+        },
+        validator_set::{is_pending_validator, mining_by_staking_address},
+    },
+    contribution::unix_now_secs,
+    test::hbbft_test_client::{create_hbbft_client, create_hbbft_clients},
+};
 use client::traits::BlockInfo;
 use crypto::publickey::{Generator, KeyPair, Random, Secret};
 use ethereum_types::{Address, U256};

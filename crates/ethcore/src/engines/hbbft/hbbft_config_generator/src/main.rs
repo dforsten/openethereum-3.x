@@ -19,12 +19,7 @@ use clap::{App, Arg};
 use ethstore::{KeyFile, SafeAccount};
 use keygen_history_helpers::{enodes_to_pub_keys, generate_keygens, key_sync_history_data};
 use parity_crypto::publickey::{Address, Generator, KeyPair, Public, Random, Secret};
-use std::collections::BTreeMap;
-use std::fmt::Write;
-use std::fs;
-use std::num::NonZeroU32;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{collections::BTreeMap, fmt::Write, fs, num::NonZeroU32, str::FromStr, sync::Arc};
 use toml::{map::Map, Value};
 
 pub fn create_account() -> (Secret, Public, Address) {
@@ -415,12 +410,13 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hbbft::crypto::{PublicKeySet, SecretKeyShare};
-    use hbbft::sync_key_gen::{AckOutcome, PartOutcome};
+    use hbbft::{
+        crypto::{PublicKeySet, SecretKeyShare},
+        sync_key_gen::{AckOutcome, PartOutcome},
+    };
     use rand;
     use serde::Deserialize;
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
+    use std::{collections::BTreeMap, sync::Arc};
 
     #[derive(Deserialize)]
     struct TomlHbbftOptions {

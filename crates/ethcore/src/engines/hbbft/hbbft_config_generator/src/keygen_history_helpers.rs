@@ -3,8 +3,7 @@ use ethereum_types::H128;
 use hbbft::sync_key_gen::{AckOutcome, Part, PartOutcome, PublicKey, SecretKey, SyncKeyGen};
 use parity_crypto::publickey::{public_to_address, Address, Public, Secret};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct KeyPairWrapper {
