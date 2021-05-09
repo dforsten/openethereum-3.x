@@ -56,4 +56,5 @@ pub fn create_miner() {
     fs::write("password.txt", "test").expect("Unable to write password.txt file");
 
     println!("The address of your new miner: {:?}", acc.2);
+    println!("The public key of your miner: {:?}", acc.1);
 }
