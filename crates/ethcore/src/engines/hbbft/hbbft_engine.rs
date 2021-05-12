@@ -1,9 +1,11 @@
-use std::cmp::{max, min};
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
-use std::ops::BitXor;
-use std::sync::{Arc, Weak};
-use std::time::Duration;
+use std::{
+    cmp::{max, min},
+    collections::BTreeMap,
+    convert::TryFrom,
+    ops::BitXor,
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
 use super::block_reward_hbbft::BlockRewardContract;
 use block::ExecutedBlock;
@@ -31,15 +33,17 @@ use types::{
     BlockNumber,
 };
 
-use super::contracts::keygen_history::{initialize_synckeygen, send_keygen_transactions};
-use super::contracts::staking::start_time_of_next_phase_transition;
-use super::contracts::validator_set::{
-    get_pending_validators, is_pending_validator, ValidatorType,
+use super::{
+    contracts::{
+        keygen_history::{initialize_synckeygen, send_keygen_transactions},
+        staking::start_time_of_next_phase_transition,
+        validator_set::{get_pending_validators, is_pending_validator, ValidatorType},
+    },
+    contribution::{unix_now_millis, unix_now_secs},
+    hbbft_state::{Batch, HbMessage, HbbftState, HoneyBadgerStep},
+    sealing::{self, RlpSig, Sealing},
+    NodeId,
 };
-use super::contribution::{unix_now_millis, unix_now_secs};
-use super::hbbft_state::{Batch, HbMessage, HbbftState, HoneyBadgerStep};
-use super::sealing::{self, RlpSig, Sealing};
-use super::NodeId;
 
 type TargetedMessage = hbbft::TargetedMessage<Message, NodeId>;
 
@@ -802,12 +806,13 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
 
 #[cfg(test)]
 mod tests {
-    use super::super::contribution::Contribution;
-    use super::super::test::create_transactions::create_transaction;
+    use super::super::{contribution::Contribution, test::create_transactions::create_transaction};
     use crypto::publickey::{Generator, Random};
     use ethereum_types::U256;
-    use hbbft::honey_badger::{HoneyBadger, HoneyBadgerBuilder};
-    use hbbft::NetworkInfo;
+    use hbbft::{
+        honey_badger::{HoneyBadger, HoneyBadgerBuilder},
+        NetworkInfo,
+    };
     use rand_065;
     use std::sync::Arc;
     use types::transaction::SignedTransaction;
