@@ -22,6 +22,7 @@ use hbbft::{
 };
 use itertools::Itertools;
 use parking_lot::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 use types::ids::BlockId;
 
@@ -233,6 +234,9 @@ pub fn send_keygen_transactions(
     client: &dyn EngineClient,
     signer: &Arc<RwLock<Option<Box<dyn EngineSigner>>>>,
 ) -> Result<(), CallError> {
+    static LAST_PART_SENT: AtomicU64 = AtomicU64::new(0);
+    static LAST_ACKS_SENT: AtomicU64 = AtomicU64::new(0);
+
     // If we have no signer there is nothing for us to send.
     let address = match signer.read().as_ref() {
         Some(signer) => signer.address(),
@@ -264,9 +268,14 @@ pub fn send_keygen_transactions(
     };
 
     let upcoming_epoch = get_posdao_epoch(client, BlockId::Latest)? + 1;
+    let cur_block = client
+        .block_number(BlockId::Latest)
+        .ok_or(CallError::ReturnValueInvalid)?;
 
     // Check if we already sent our part.
-    if !has_part_of_address_data(client, address)? {
+    if (LAST_PART_SENT.load(Ordering::SeqCst) + 10 < cur_block)
+        && !has_part_of_address_data(client, address)?
+    {
         let serialized_part = match bincode::serialize(&part_data) {
             Ok(part) => part,
             Err(_) => return Err(CallError::ReturnValueInvalid),
@@ -281,6 +290,7 @@ pub fn send_keygen_transactions(
         full_client
             .transact_silently(part_transaction)
             .map_err(|_| CallError::ReturnValueInvalid)?;
+        LAST_PART_SENT.store(cur_block, Ordering::SeqCst);
     }
 
     // Return if any Part is missing.
@@ -295,7 +305,7 @@ pub fn send_keygen_transactions(
     }
 
     // Now we are sure all parts are ready, let's check if we sent our Acks.
-    if !has_acks_of_address_data(client, address)? {
+    if (LAST_ACKS_SENT.load(Ordering::SeqCst) + 10 < cur_block) && !has_acks_of_address_data(client, address)? {
         let mut serialized_acks = Vec::new();
         for ack in acks {
             serialized_acks.push(match bincode::serialize(&ack) {
@@ -313,6 +323,7 @@ pub fn send_keygen_transactions(
         full_client
             .transact_silently(acks_transaction)
             .map_err(|_| CallError::ReturnValueInvalid)?;
+        LAST_ACKS_SENT.store(cur_block, Ordering::SeqCst);
     }
 
     Ok(())
