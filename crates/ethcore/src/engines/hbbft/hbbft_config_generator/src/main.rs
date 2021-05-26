@@ -211,6 +211,10 @@ fn to_toml(
 
     mining.insert("force_sealing".into(), Value::Boolean(true));
     mining.insert("min_gas_price".into(), Value::Integer(1000000000));
+    mining.insert(
+        "gas_floor_target".into(),
+        Value::String("1000000000".into()),
+    );
     mining.insert("reseal_on_txs".into(), Value::String("none".into()));
     mining.insert("extra_data".into(), Value::String("Parity".into()));
     mining.insert("reseal_min_period".into(), Value::Integer(0));

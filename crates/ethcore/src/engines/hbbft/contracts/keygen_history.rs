@@ -22,8 +22,14 @@ use hbbft::{
 };
 use itertools::Itertools;
 use parking_lot::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 use types::ids::BlockId;
 
 use_contract!(
@@ -280,11 +286,21 @@ pub fn send_keygen_transactions(
             Ok(part) => part,
             Err(_) => return Err(CallError::ReturnValueInvalid),
         };
+        let serialized_part_len = serialized_part.len();
         let write_part_data =
             key_history_contract::functions::write_part::call(upcoming_epoch, serialized_part);
 
+        // the required gas values have been approximated by
+        // experimenting and it's a very rough estimation.
+        // it can be further fine tuned to be just above the real consumption.
+        // ACKs require much more gas,
+        // and usually run into the gas limit problems.
+        let gas: usize = serialized_part_len * 750 + 100_000;
+
+        trace!(target: "engine", "Hbbft part transaction gas: part-len: {} gas: {}", serialized_part_len, gas);
+
         let part_transaction = TransactionRequest::call(*KEYGEN_HISTORY_ADDRESS, write_part_data.0)
-            .gas(U256::from(7_000_000))
+            .gas(U256::from(gas))
             .nonce(full_client.next_nonce(&address))
             .gas_price(U256::from(10000000000u64));
         full_client
@@ -305,19 +321,32 @@ pub fn send_keygen_transactions(
     }
 
     // Now we are sure all parts are ready, let's check if we sent our Acks.
-    if (LAST_ACKS_SENT.load(Ordering::SeqCst) + 10 < cur_block) && !has_acks_of_address_data(client, address)? {
+    if (LAST_ACKS_SENT.load(Ordering::SeqCst) + 10 < cur_block)
+        && !has_acks_of_address_data(client, address)?
+    {
         let mut serialized_acks = Vec::new();
+        let mut total_bytes_for_acks = 0;
+
         for ack in acks {
-            serialized_acks.push(match bincode::serialize(&ack) {
+            let ack_to_push = match bincode::serialize(&ack) {
                 Ok(serialized_ack) => serialized_ack,
                 Err(_) => return Err(CallError::ReturnValueInvalid),
-            })
+            };
+            total_bytes_for_acks += ack_to_push.len();
+            serialized_acks.push(ack_to_push);
         }
+
         let write_acks_data =
             key_history_contract::functions::write_acks::call(upcoming_epoch, serialized_acks);
 
+        // the required gas values have been approximated by
+        // experimenting and it's a very rough estimation.
+        // it can be further fine tuned to be just above the real consumption.
+        let gas = total_bytes_for_acks * 800 + 200_000;
+        trace!(target: "engine","acks-len: {} gas: {}", total_bytes_for_acks, gas);
+
         let acks_transaction = TransactionRequest::call(*KEYGEN_HISTORY_ADDRESS, write_acks_data.0)
-            .gas(U256::from(7_000_000))
+            .gas(U256::from(gas))
             .nonce(full_client.next_nonce(&address))
             .gas_price(U256::from(10000000000u64));
         full_client

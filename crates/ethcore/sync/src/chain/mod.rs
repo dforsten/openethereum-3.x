@@ -894,15 +894,25 @@ impl ChainSync {
     fn reset(&mut self, io: &mut dyn SyncIo, state: Option<SyncState>) {
         self.new_blocks.reset();
         let chain_info = io.chain().chain_info();
-        for (_, ref mut p) in &mut self.peers {
+        let mut to_reset = Vec::new();
+        for (pid, ref mut p) in &mut self.peers {
             if p.block_set != Some(BlockSet::OldBlocks) {
                 p.reset_asking();
+                to_reset.push(*pid);
                 if p.difficulty.is_none() {
                     // assume peer has up to date difficulty
                     p.difficulty = Some(chain_info.pending_total_difficulty);
                 }
             }
         }
+
+        // Since "reset_asking" was called these peers are in "expired" state.
+        // Make sure they are available for syncing again.
+        for p in to_reset {
+            self.clear_peer_download(p);
+            self.reset_peer_asking(p, PeerAsking::Nothing);
+        }
+
         self.state = state.unwrap_or_else(|| Self::get_init_state(self.warp_sync, io.chain()));
         // Reactivate peers only if some progress has been made
         // since the last sync round of if starting fresh.
@@ -1477,8 +1487,8 @@ impl ChainSync {
             };
             if timeout {
                 debug!(target:"sync", "Timeout {}", peer_id);
-                //io.disconnect_peer(*peer_id);
-                //aborting.push(*peer_id);
+                io.disconnect_peer(*peer_id);
+                aborting.push(*peer_id);
             }
         }
         for p in aborting {
