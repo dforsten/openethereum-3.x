@@ -22,8 +22,14 @@ use hbbft::{
 };
 use itertools::Itertools;
 use parking_lot::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 use types::ids::BlockId;
 
 use_contract!(
