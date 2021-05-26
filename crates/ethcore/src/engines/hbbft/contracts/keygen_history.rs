@@ -319,14 +319,14 @@ pub fn send_keygen_transactions(
         && !has_acks_of_address_data(client, address)?
     {
         let mut serialized_acks = Vec::new();
-		let mut total_bytes_for_acks = 0;
+        let mut total_bytes_for_acks = 0;
 
-		for ack in acks {
+        for ack in acks {
             let ack_to_push = match bincode::serialize(&ack) {
                 Ok(serialized_ack) => serialized_ack,
                 Err(_) => return Err(CallError::ReturnValueInvalid),
             };
-			total_bytes_for_acks += ack_to_push.len();
+            total_bytes_for_acks += ack_to_push.len();
             serialized_acks.push(ack_to_push);
         }
 
