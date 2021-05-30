@@ -466,7 +466,7 @@ impl SyncProtocolHandler {
             if let Some(peer_id) = nc.node_id_to_peer_id(*node_id) {
                 let found_peers = self.sync.peer_info(&[peer_id]);
                 if let Some(peer_info) = found_peers.first() {
-                    if let Some(peer_info) = peer_info {
+                    if let Some(_) = peer_info {
                         self.send_cached_consensus_messages_for(&mut sync_io, node_id, peer_id);
                     }
                 }
