@@ -1185,7 +1185,42 @@ impl ChainSync {
             .count();
 
         let higher_difficulty = peer_difficulty.map_or(true, |pd| pd > syncing_difficulty);
-        if force || higher_difficulty || self.old_blocks.is_some() {
+
+        // it is possible that some nodes report their current difficulty higher than it actually is.
+        // in this case the system is looking like a maniac how to retrieve this good block, without success.
+        // the system get's stuck.
+        let isOtherBlock = peer_latest != chain_info.best_block_hash;
+
+        if higher_difficulty && !isOtherBlock {
+            if peer_difficulty.is_some() {
+                //only warn if the other peer has provided a difficulty level.
+                warn!(target: "sync", "protected from hang. peer {}, did send wrong information ( td={:?}, our td={}) for blockhash latest={}", peer_id, peer_difficulty, syncing_difficulty, peer_latest);
+
+                // NetworkContext session_info
+                let session_info = io.peer_session_info(peer_id);
+
+                match session_info {
+                    Some(s) => {
+                        warn!(target: "sync", "protected from hang. peer {} {} originated by us: {}", peer_id, s.remote_address, s.originated);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if self.old_blocks.is_some() {
+            info!(target: "sync", "syncing old blocks from peer: {} ", peer_id);
+            let session_info = io.peer_session_info(peer_id);
+
+            match session_info {
+                Some(s) => {
+                    warn!(target: "sync", "old blocks peer: {} {} originated by us: {}", peer_id, s.remote_address, s.originated);
+                }
+                _ => {}
+            }
+        }
+
+        if force || (higher_difficulty && isOtherBlock) || self.old_blocks.is_some() {
             match self.state {
 				SyncState::WaitingPeers => {
 					trace!(

@@ -430,6 +430,7 @@ impl HoneyBadgerBFT {
     fn join_hbbft_epoch(&self) -> Result<(), EngineError> {
         let client = self.client_arc().ok_or(EngineError::RequiresClient)?;
         if self.is_syncing(&client) {
+            trace!(target: "consensus", "tried to join HBBFT Epoch, but still syncing.");
             return Ok(());
         }
         let step = self
