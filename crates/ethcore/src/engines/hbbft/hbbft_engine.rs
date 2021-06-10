@@ -3,13 +3,14 @@ use std::{
     collections::BTreeMap,
     convert::TryFrom,
     ops::BitXor,
-    sync::{Arc, Weak},
+    sync::{Arc, Weak,
+		   atomic::AtomicBool},
     time::Duration,
 };
 
 use super::block_reward_hbbft::BlockRewardContract;
 use block::ExecutedBlock;
-use client::traits::{EngineClient, ForceUpdateSealing};
+use client::traits::{EngineClient, ForceUpdateSealing, TransactionRequest};
 use crypto::publickey::Signature;
 use engines::{
     default_system_or_code_call, signer::EngineSigner, Engine, EngineError, ForkChoice, Seal,
@@ -44,6 +45,10 @@ use super::{
     sealing::{self, RlpSig, Sealing},
     NodeId,
 };
+use std::sync::atomic::Ordering;
+use engines::hbbft::contracts::validator_set::{get_validator_available_since, send_tx_announce_availability, staking_by_mining_address};
+use miner::BlockChainClient;
+use std::ops::Deref;
 
 type TargetedMessage = hbbft::TargetedMessage<Message, NodeId>;
 
@@ -150,6 +155,13 @@ impl IoHandler<()> for TransitionHandler {
 
             // Periodically allow messages received for future epochs to be processed.
             self.engine.replay_cached_messages();
+
+			match self.engine.do_availability_handling() {
+				Ok(()) => {}
+				Err(e) => {
+					error!(target: "engine", "Error during do_availability_handling: {}", e)
+				}
+			}
 
             // The client may not be registered yet on startup, we set the default duration.
             let mut timer_duration = DEFAULT_DURATION;
@@ -526,6 +538,78 @@ impl HoneyBadgerBFT {
         Some(())
     }
 
+	fn do_availability_handling(&self) -> Result<(), String> {
+
+		// only try once on startup-
+		static HAS_SENT: AtomicBool = AtomicBool::new(false);
+
+		if !HAS_SENT.load(Ordering::SeqCst) {
+			// If we have no signer there is nothing for us to send.
+			let address = match self.signer.read().as_ref() {
+				Some(signer) => signer.address(),
+				None => {
+					// warn!("Could not retrieve address for writing availability transaction.");
+					return Ok(());
+				}
+			};
+
+			match self.client_arc() {
+				Some(client) => {
+					if !self.is_syncing(&client) {
+
+						let engine_client = client.deref();
+
+						match staking_by_mining_address(engine_client,&address) {
+							Ok(stakingAddress) => {
+								if stakingAddress.is_zero() {
+									//TODO: here some fine handling can improve performance.
+									//with this implementation every node (validator or not)
+									//needs to query this state every block.
+									trace!(target: "engine", "availability handling not a validator");
+									return Ok(());
+								}
+							}
+							Err(callError) => {
+								error!(target: "engine", "unable to ask for corresponding staking address for given mining address: {:?}", callError);
+								let message = format!("unable to ask for corresponding staking address for given mining address: {:?}", callError);
+								return Err(message.into());
+							}
+						}
+
+						match get_validator_available_since(engine_client, &address) {
+							Ok(s) => {
+								if s.is_zero() {
+									//let c : &dyn BlockChainClient = client.into();
+									match client.as_full_client() {
+										Some(c) => {
+											//debug!(target: "engine", "sending announce availability transaction");
+											info!("sending announce availability transaction");
+											send_tx_announce_availability(c, &address);
+										}
+										None => {
+											return Err("Unable to retrieve client.as_full_client()".into());
+										}
+									}
+
+									HAS_SENT.store(true, Ordering::SeqCst);
+								}
+							}
+							Err(e) => {
+								//return Err(format!("Error trying to send availability check: {:?}", e));
+								return Err(format!("Error trying to send availability check: {:?}", e));
+							}
+						}
+					}
+				}
+				None => {
+					return Err("could not send availability announcement because client_arc could not be retrieved:".into());
+				}
+			}
+		}
+
+		return Ok(());
+	}
+
     /// Returns true if we are in the keygen phase and a new key has been generated.
     fn do_keygen(&self) -> bool {
         match self.client_arc() {
@@ -569,6 +653,8 @@ impl HoneyBadgerBFT {
             }
         }
     }
+
+
 
     fn check_for_epoch_change(&self) -> Option<()> {
         let client = self.client_arc()?;
