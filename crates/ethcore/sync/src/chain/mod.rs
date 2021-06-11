@@ -1189,9 +1189,9 @@ impl ChainSync {
         // it is possible that some nodes report their current difficulty higher than it actually is.
         // in this case the system is looking like a maniac how to retrieve this good block, without success.
         // the system get's stuck.
-        let isOtherBlock = peer_latest != chain_info.best_block_hash;
+        let is_other_block = peer_latest != chain_info.best_block_hash;
 
-        if higher_difficulty && !isOtherBlock {
+        if higher_difficulty && !is_other_block {
             if peer_difficulty.is_some() {
                 //only warn if the other peer has provided a difficulty level.
                 warn!(target: "sync", "protected from hang. peer {}, did send wrong information ( td={:?}, our td={}) for blockhash latest={}", peer_id, peer_difficulty, syncing_difficulty, peer_latest);
@@ -1220,7 +1220,7 @@ impl ChainSync {
             }
         }
 
-        if force || (higher_difficulty && isOtherBlock) || self.old_blocks.is_some() {
+        if force || (higher_difficulty && is_other_block) || self.old_blocks.is_some() {
             match self.state {
 				SyncState::WaitingPeers => {
 					trace!(

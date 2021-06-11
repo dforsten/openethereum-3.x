@@ -57,7 +57,7 @@ use rlp::{Decodable, DecoderError, Rlp};
 use std::{
     cmp::Ordering,
     collections::HashMap,
-    fmt::{self, Display, Formatter},
+    fmt::{self, Display},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     str::{self, FromStr},
     sync::Arc,

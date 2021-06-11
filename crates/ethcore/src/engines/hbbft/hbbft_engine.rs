@@ -47,7 +47,6 @@ use super::{
 use engines::hbbft::contracts::validator_set::{
     get_validator_available_since, send_tx_announce_availability, staking_by_mining_address,
 };
-use miner::BlockChainClient;
 use std::ops::Deref;
 use std::sync::atomic::Ordering;
 
@@ -559,18 +558,18 @@ impl HoneyBadgerBFT {
                         let engine_client = client.deref();
 
                         match staking_by_mining_address(engine_client, &address) {
-                            Ok(stakingAddress) => {
-                                if stakingAddress.is_zero() {
+                            Ok(staking_address) => {
+                                if staking_address.is_zero() {
                                     //TODO: here some fine handling can improve performance.
                                     //with this implementation every node (validator or not)
                                     //needs to query this state every block.
-                                    trace!(target: "engine", "availability handling not a validator");
+                                    //trace!(target: "engine", "availability handling not a validator");
                                     return Ok(());
                                 }
                             }
-                            Err(callError) => {
-                                error!(target: "engine", "unable to ask for corresponding staking address for given mining address: {:?}", callError);
-                                let message = format!("unable to ask for corresponding staking address for given mining address: {:?}", callError);
+                            Err(call_error) => {
+                                error!(target: "engine", "unable to ask for corresponding staking address for given mining address: {:?}", call_error);
+                                let message = format!("unable to ask for corresponding staking address for given mining address: {:?}", call_error);
                                 return Err(message.into());
                             }
                         }
@@ -583,7 +582,13 @@ impl HoneyBadgerBFT {
                                         Some(c) => {
                                             //debug!(target: "engine", "sending announce availability transaction");
                                             info!("sending announce availability transaction");
-                                            send_tx_announce_availability(c, &address);
+                                            match send_tx_announce_availability(c, &address) {
+                                                Ok(()) => {}
+                                                Err(call_error) => {
+                                                    //error!(target: "engine", "CallError during announce availability. {:?}", call_error);
+                                                    return Err(format!("CallError during announce availability. {:?}", call_error));
+                                                }
+                                            }
                                         }
                                         None => {
                                             return Err(

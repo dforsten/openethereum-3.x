@@ -22,12 +22,6 @@ macro_rules! call_const_validator {
 	};
 }
 
-macro_rules! call_const_validator_no_args {
-    ($c:ident, $x:ident) => {
-        $c.call_const(validator_set_hbbft::functions::$x::call())
-    };
-}
-
 pub enum ValidatorType {
     Current,
     Pending,
@@ -96,15 +90,19 @@ pub fn get_pending_validators(client: &dyn EngineClient) -> Result<Vec<Address>,
     call_const_validator!(c, get_pending_validators)
 }
 
-pub fn send_tx_announce_availability(full_client: &dyn BlockChainClient, address: &Address) {
-    let sendData = validator_set_hbbft::functions::announce_availability::call();
-
-    let transaction = TransactionRequest::call(*VALIDATOR_SET_ADDRESS, sendData.0)
+pub fn send_tx_announce_availability(
+    full_client: &dyn BlockChainClient,
+    address: &Address,
+) -> Result<(), CallError> {
+    let send_data = validator_set_hbbft::functions::announce_availability::call();
+    let transaction = TransactionRequest::call(*VALIDATOR_SET_ADDRESS, send_data.0)
         .gas(U256::from(250_000))
         .nonce(full_client.next_nonce(&address))
         .gas_price(U256::from(10000000000u64));
 
     full_client
         .transact_silently(transaction)
-        .map_err(|_| CallError::ReturnValueInvalid);
+        .map_err(|_| CallError::ReturnValueInvalid)?;
+
+    return Ok(());
 }
