@@ -5,6 +5,7 @@ use engines::hbbft::utils::bound_contract::{BoundContract, CallError};
 use ethereum_types::{Address, U256};
 use std::{collections::BTreeMap, str::FromStr};
 use types::ids::BlockId;
+use types::transaction::Error;
 
 use_contract!(
     validator_set_hbbft,
@@ -93,16 +94,14 @@ pub fn get_pending_validators(client: &dyn EngineClient) -> Result<Vec<Address>,
 pub fn send_tx_announce_availability(
     full_client: &dyn BlockChainClient,
     address: &Address,
-) -> Result<(), CallError> {
+) -> Result<(), Error> {
     let send_data = validator_set_hbbft::functions::announce_availability::call();
     let transaction = TransactionRequest::call(*VALIDATOR_SET_ADDRESS, send_data.0)
         .gas(U256::from(250_000))
-        .nonce(full_client.next_nonce(&address))
-        .gas_price(U256::from(10000000000u64));
+        .nonce(full_client.next_nonce(&address));
 
     full_client
-        .transact_silently(transaction)
-        .map_err(|_| CallError::ReturnValueInvalid)?;
+        .transact_silently(transaction)?;
 
     return Ok(());
 }
