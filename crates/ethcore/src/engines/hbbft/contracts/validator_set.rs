@@ -95,13 +95,31 @@ pub fn send_tx_announce_availability(
     full_client: &dyn BlockChainClient,
     address: &Address,
 ) -> Result<(), Error> {
+
+	// chain.latest_nonce(address)
+	// we need to get the real latest nonce.
+	//let nonce_from_full_client =  full_client.nonce(address,BlockId::Latest);
+
+	let mut nonce = full_client.next_nonce(&address);
+
+	match  full_client.nonce(address,BlockId::Latest) {
+		Some(new_nonce) => {
+			if new_nonce != nonce {
+				info!(target:"consensus", "got better nonce for announce availability: {} => {}", nonce, new_nonce);
+				nonce = new_nonce;
+			}
+		}
+		None => {}
+	}
+
     let send_data = validator_set_hbbft::functions::announce_availability::call();
     let transaction = TransactionRequest::call(*VALIDATOR_SET_ADDRESS, send_data.0)
         .gas(U256::from(250_000))
-        .nonce(full_client.next_nonce(&address));
+        .nonce(nonce);
 
-    full_client
-        .transact_silently(transaction)?;
+	info!(target:"consensus", "sending announce availability with nonce: {}", nonce);
+
+    full_client.transact_silently(transaction)?;
 
     return Ok(());
 }
