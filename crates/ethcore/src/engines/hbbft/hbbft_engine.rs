@@ -653,6 +653,7 @@ impl HoneyBadgerBFT {
                 //       and call it periodically using timer events instead of on close block.
                 if let Some(signer) = self.signer.read().as_ref() {
                     if let Ok(is_pending) = is_pending_validator(&*client, &signer.address()) {
+						trace!(target: "engine", "is_pending_validator: {}", is_pending);
                         if is_pending {
                             let _err = send_keygen_transactions(&*client, &self.signer);
                         }
