@@ -35,12 +35,13 @@ use types::{
 
 use super::{
     contracts::{
-        keygen_history::{initialize_synckeygen, send_keygen_transactions},
+        keygen_history::initialize_synckeygen,
         staking::start_time_of_next_phase_transition,
         validator_set::{get_pending_validators, is_pending_validator, ValidatorType},
     },
     contribution::{unix_now_millis, unix_now_secs},
     hbbft_state::{Batch, HbMessage, HbbftState, HoneyBadgerStep},
+    keygen_transactions::send_keygen_transactions,
     sealing::{self, RlpSig, Sealing},
     NodeId,
 };
