@@ -41,7 +41,7 @@ use super::{
     },
     contribution::{unix_now_millis, unix_now_secs},
     hbbft_state::{Batch, HbMessage, HbbftState, HoneyBadgerStep},
-    keygen_transactions::send_keygen_transactions,
+    keygen_transactions::KeygenTransactionSender,
     sealing::{self, RlpSig, Sealing},
     NodeId,
 };
@@ -68,6 +68,7 @@ pub struct HoneyBadgerBFT {
     params: HbbftParams,
     message_counter: RwLock<usize>,
     random_numbers: RwLock<BTreeMap<BlockNumber, U256>>,
+    keygen_transaction_sender: RwLock<KeygenTransactionSender>,
 }
 
 struct TransitionHandler {
@@ -187,6 +188,7 @@ impl HoneyBadgerBFT {
             params,
             message_counter: RwLock::new(0),
             random_numbers: RwLock::new(BTreeMap::new()),
+            keygen_transaction_sender: RwLock::new(KeygenTransactionSender::new()),
         });
 
         if !engine.params.is_unit_test.unwrap_or(false) {
@@ -561,7 +563,10 @@ impl HoneyBadgerBFT {
                 if let Some(signer) = self.signer.read().as_ref() {
                     if let Ok(is_pending) = is_pending_validator(&*client, &signer.address()) {
                         if is_pending {
-                            let _err = send_keygen_transactions(&*client, &self.signer);
+                            let _err = self
+                                .keygen_transaction_sender
+                                .write()
+                                .send_keygen_transactions(&*client, &self.signer);
                         }
                     }
                 }
