@@ -1,11 +1,12 @@
-use client::traits::{EngineClient, TransactionRequest};
-use client::BlockChainClient;
+use client::{
+    traits::{EngineClient, TransactionRequest},
+    BlockChainClient,
+};
 use crypto::publickey::Public;
 use engines::hbbft::utils::bound_contract::{BoundContract, CallError};
 use ethereum_types::{Address, U256};
 use std::{collections::BTreeMap, str::FromStr};
-use types::ids::BlockId;
-use types::transaction::Error;
+use types::{ids::BlockId, transaction::Error};
 
 use_contract!(
     validator_set_hbbft,
@@ -95,29 +96,28 @@ pub fn send_tx_announce_availability(
     full_client: &dyn BlockChainClient,
     address: &Address,
 ) -> Result<(), Error> {
+    // chain.latest_nonce(address)
+    // we need to get the real latest nonce.
+    //let nonce_from_full_client =  full_client.nonce(address,BlockId::Latest);
 
-	// chain.latest_nonce(address)
-	// we need to get the real latest nonce.
-	//let nonce_from_full_client =  full_client.nonce(address,BlockId::Latest);
+    let mut nonce = full_client.next_nonce(&address);
 
-	let mut nonce = full_client.next_nonce(&address);
-
-	match  full_client.nonce(address,BlockId::Latest) {
-		Some(new_nonce) => {
-			if new_nonce != nonce {
-				info!(target:"consensus", "got better nonce for announce availability: {} => {}", nonce, new_nonce);
-				nonce = new_nonce;
-			}
-		}
-		None => {}
-	}
+    match full_client.nonce(address, BlockId::Latest) {
+        Some(new_nonce) => {
+            if new_nonce != nonce {
+                info!(target:"consensus", "got better nonce for announce availability: {} => {}", nonce, new_nonce);
+                nonce = new_nonce;
+            }
+        }
+        None => {}
+    }
 
     let send_data = validator_set_hbbft::functions::announce_availability::call();
     let transaction = TransactionRequest::call(*VALIDATOR_SET_ADDRESS, send_data.0)
         .gas(U256::from(250_000))
         .nonce(nonce);
 
-	info!(target:"consensus", "sending announce availability with nonce: {}", nonce);
+    info!(target:"consensus", "sending announce availability with nonce: {}", nonce);
 
     full_client.transact_silently(transaction)?;
 

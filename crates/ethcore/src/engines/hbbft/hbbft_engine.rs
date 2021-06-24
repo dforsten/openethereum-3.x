@@ -47,8 +47,7 @@ use super::{
 use engines::hbbft::contracts::validator_set::{
     get_validator_available_since, send_tx_announce_availability, staking_by_mining_address,
 };
-use std::ops::Deref;
-use std::sync::atomic::Ordering;
+use std::{ops::Deref, sync::atomic::Ordering};
 
 type TargetedMessage = hbbft::TargetedMessage<Message, NodeId>;
 
