@@ -155,11 +155,11 @@ impl IoHandler<()> for TransitionHandler {
             // Periodically allow messages received for future epochs to be processed.
             self.engine.replay_cached_messages();
 
-			if let Err(e) = self.engine.do_availability_handling()  {
-				error!(target: "engine", "Error during do_availability_handling: {}", e)
-			}
+            if let Err(e) = self.engine.do_availability_handling() {
+                error!(target: "engine", "Error during do_availability_handling: {}", e)
+            }
 
-			// The client may not be registered yet on startup, we set the default duration.
+            // The client may not be registered yet on startup, we set the default duration.
             let mut timer_duration = DEFAULT_DURATION;
             if let Some(ref weak) = *self.client.read() {
                 if let Some(c) = weak.upgrade() {
