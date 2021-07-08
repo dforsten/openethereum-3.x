@@ -42,6 +42,8 @@ use super::{
     SyncState, ETH_PROTOCOL_VERSION_63, ETH_PROTOCOL_VERSION_64, ETH_PROTOCOL_VERSION_65,
     MAX_NEW_BLOCK_AGE, MAX_NEW_HASHES, PAR_PROTOCOL_VERSION_1, PAR_PROTOCOL_VERSION_2,
 };
+use ethcore::error::TransactionImportError::Other;
+use network::client_version::ClientCapabilities;
 
 /// The Chain Sync Handler: handles responses from peers
 pub struct SyncHandler;
@@ -144,8 +146,17 @@ impl SyncHandler {
 
     /// Called when a new peer is connected
     pub fn on_peer_connected(sync: &mut ChainSync, io: &mut dyn SyncIo, peer: PeerId) {
-        trace!(target: "sync", "== Connected {}: {}", peer, io.peer_version(peer));
-        if let Err(e) = sync.send_status(io, peer) {
+		let peer_version = io.peer_version(peer);
+        trace!(target: "sync", "== Connected {}: {}", peer, peer_version);
+
+		let whitelisted = peer_version.is_hbbft();
+		// peer_version_string.contains("hbbft")
+		// && peer_version_string.contains("OpenEthereum");
+
+		if (!whitelisted) {
+			info!(target:"sync", "Disconnecting Peer (this Software Version not whitelisted) {}", peer_version);
+			io.disconnect_peer(peer);
+		} else if let Err(e) = sync.send_status(io, peer) {
             debug!(target:"sync", "Error sending status request: {:?}", e);
             io.disconnect_peer(peer);
         } else {
