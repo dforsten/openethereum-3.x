@@ -153,9 +153,14 @@ impl SyncHandler {
         // peer_version_string.contains("hbbft")
         // && peer_version_string.contains("OpenEthereum");
 
-        if (!whitelisted) {
-            info!(target:"sync", "Disconnecting Peer (this Software Version not whitelisted) {}", peer_version);
-            io.disconnect_peer(peer);
+        if !whitelisted {
+			let mut ip_addr = String::new();
+			match io.peer_session_info(peer) {
+				Some(session) => { ip_addr = session.remote_address.to_string() }
+				None => {}
+			}
+            info!(target:"sync", "Disabling Peer (this Software Version not whitelisted) {} ip:{} ", peer_version, ip_addr);
+            io.disable_peer(peer);
         } else if let Err(e) = sync.send_status(io, peer) {
             debug!(target:"sync", "Error sending status request: {:?}", e);
             io.disconnect_peer(peer);
