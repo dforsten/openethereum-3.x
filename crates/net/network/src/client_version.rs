@@ -159,7 +159,7 @@ impl ClientCapabilities for ClientVersion {
                 for id in client.semver.pre.iter() {
                     match id {
                         Identifier::AlphaNumeric(alpha) => {
-                            if (alpha.contains("hbbft")) {
+                            if alpha.contains("hbbft") {
                                 return true;
                             }
                         }
