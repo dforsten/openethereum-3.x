@@ -154,11 +154,11 @@ impl SyncHandler {
         // && peer_version_string.contains("OpenEthereum");
 
         if !whitelisted {
-			let mut ip_addr = String::new();
-			match io.peer_session_info(peer) {
-				Some(session) => { ip_addr = session.remote_address.to_string() }
-				None => {}
-			}
+            let mut ip_addr = String::new();
+            match io.peer_session_info(peer) {
+                Some(session) => ip_addr = session.remote_address.to_string(),
+                None => {}
+            }
             info!(target:"sync", "Disabling Peer (this Software Version not whitelisted) {} ip:{} ", peer_version, ip_addr);
             io.disable_peer(peer);
         } else if let Err(e) = sync.send_status(io, peer) {
