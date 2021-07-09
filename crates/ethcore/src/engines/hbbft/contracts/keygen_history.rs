@@ -324,7 +324,10 @@ pub fn send_keygen_transactions(
         acks.push(
             match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest)? {
                 Some(ack) => ack,
-                None => return Err(CallError::ReturnValueInvalid),
+                None => {
+					trace!(target:"engine", "could not retrieve part for {}", *v);
+					return Err(CallError::ReturnValueInvalid);
+				}
             },
         );
     }
