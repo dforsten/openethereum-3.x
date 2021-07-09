@@ -18,7 +18,7 @@
 
 //! Parse ethereum client ID strings and provide querying functionality
 
-use semver::{Version, Identifier};
+use semver::{Identifier, Version};
 use std::fmt;
 
 /// Parity client string prefix
@@ -132,8 +132,8 @@ pub trait ClientCapabilities {
     /// this version accepts them.
     fn accepts_service_transaction(&self) -> bool;
 
-	/// is a HBBFT capable client.
-	fn is_hbbft(&self) -> bool;
+    /// is a HBBFT capable client.
+    fn is_hbbft(&self) -> bool;
 }
 
 impl ClientCapabilities for ClientVersion {
@@ -153,28 +153,26 @@ impl ClientCapabilities for ClientVersion {
         }
     }
 
-	fn is_hbbft(&self) -> bool {
-		match self {
-			ClientVersion::ParityClient(client) => {
-
-				for id in client.semver.pre.iter() {
-
-					match id {
-						Identifier::AlphaNumeric(alpha) => {
-							if (alpha.contains("hbbft")) {
-								return true;
-							}
-						},
-						Identifier::Numeric(_) => {},
-					}
-				}
-				return false;
-			},
-			ClientVersion::ParityUnknownFormat(_) => false,
-			ClientVersion::Other(_) => false,
-		};
-		return false;
-	}
+    fn is_hbbft(&self) -> bool {
+        match self {
+            ClientVersion::ParityClient(client) => {
+                for id in client.semver.pre.iter() {
+                    match id {
+                        Identifier::AlphaNumeric(alpha) => {
+                            if (alpha.contains("hbbft")) {
+                                return true;
+                            }
+                        }
+                        Identifier::Numeric(_) => {}
+                    }
+                }
+                return false;
+            }
+            ClientVersion::ParityUnknownFormat(_) => false,
+            ClientVersion::Other(_) => false,
+        };
+        return false;
+    }
 }
 
 fn is_parity(client_id: &str) -> bool {

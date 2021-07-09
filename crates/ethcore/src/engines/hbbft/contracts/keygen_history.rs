@@ -247,20 +247,20 @@ pub fn send_keygen_transactions(
     let address = match signer.read().as_ref() {
         Some(signer) => signer.address(),
         None => {
-			trace!(target: "engine", "Could not send keygen transactions, because signer module could not be retrieved");
-			return Err(CallError::ReturnValueInvalid)
-		},
+            trace!(target: "engine", "Could not send keygen transactions, because signer module could not be retrieved");
+            return Err(CallError::ReturnValueInvalid);
+        }
     };
-	trace!(target:"engine", "getting full client...");
+    trace!(target:"engine", "getting full client...");
     let full_client = client.as_full_client().ok_or(CallError::NotFullClient)?;
 
     // If the chain is still syncing, do not send Parts or Acks.
     if full_client.is_major_syncing() {
-		trace!(target:"engine", "skipping sending key gen transaction, because we are syncing");
-		return Ok(());
+        trace!(target:"engine", "skipping sending key gen transaction, because we are syncing");
+        return Ok(());
     }
 
-	trace!(target:"engine", " get_validator_pubkeys...");
+    trace!(target:"engine", " get_validator_pubkeys...");
 
     let vmap = get_validator_pubkeys(&*client, BlockId::Latest, ValidatorType::Pending)?;
     let pub_keys: BTreeMap<_, _> = vmap
@@ -280,7 +280,7 @@ pub fn send_keygen_transactions(
     };
 
     let upcoming_epoch = get_posdao_epoch(client, BlockId::Latest)? + 1;
-	trace!(target:"engine", "preparing to send PARTS for upcomming epoch: {}", upcoming_epoch);
+    trace!(target:"engine", "preparing to send PARTS for upcomming epoch: {}", upcoming_epoch);
 
     let cur_block = client
         .block_number(BlockId::Latest)
@@ -317,7 +317,7 @@ pub fn send_keygen_transactions(
         LAST_PART_SENT.store(cur_block, Ordering::SeqCst);
     }
 
-	trace!(target:"engine", "checking for acks...");
+    trace!(target:"engine", "checking for acks...");
     // Return if any Part is missing.
     let mut acks = Vec::new();
     for v in vmap.keys().sorted() {
@@ -325,14 +325,14 @@ pub fn send_keygen_transactions(
             match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest)? {
                 Some(ack) => ack,
                 None => {
-					trace!(target:"engine", "could not retrieve part for {}", *v);
-					return Err(CallError::ReturnValueInvalid);
-				}
+                    trace!(target:"engine", "could not retrieve part for {}", *v);
+                    return Err(CallError::ReturnValueInvalid);
+                }
             },
         );
     }
 
-	 trace!(target:"engine", "has_acks_of_address_data: {:?}", has_acks_of_address_data(client, address));
+    trace!(target:"engine", "has_acks_of_address_data: {:?}", has_acks_of_address_data(client, address));
 
     // Now we are sure all parts are ready, let's check if we sent our Acks.
     if (LAST_ACKS_SENT.load(Ordering::SeqCst) + 10 < cur_block)
