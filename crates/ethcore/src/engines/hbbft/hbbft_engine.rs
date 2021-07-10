@@ -35,12 +35,13 @@ use types::{
 
 use super::{
     contracts::{
-        keygen_history::{initialize_synckeygen, send_keygen_transactions},
+        keygen_history::initialize_synckeygen,
         staking::start_time_of_next_phase_transition,
         validator_set::{get_pending_validators, is_pending_validator, ValidatorType},
     },
     contribution::{unix_now_millis, unix_now_secs},
     hbbft_state::{Batch, HbMessage, HbbftState, HoneyBadgerStep},
+    keygen_transactions::KeygenTransactionSender,
     sealing::{self, RlpSig, Sealing},
     NodeId,
 };
@@ -71,6 +72,7 @@ pub struct HoneyBadgerBFT {
     params: HbbftParams,
     message_counter: RwLock<usize>,
     random_numbers: RwLock<BTreeMap<BlockNumber, U256>>,
+    keygen_transaction_sender: RwLock<KeygenTransactionSender>,
 }
 
 struct TransitionHandler {
@@ -82,7 +84,7 @@ const DEFAULT_DURATION: Duration = Duration::from_secs(1);
 
 impl TransitionHandler {
     /// Returns the approximate time duration between the latest block and the minimum block time
-    /// or a keep-alive time duration of 1s.
+    /// (can be 0 if the minimum block time has passed) or the default time duration of 1s.
     fn duration_remaining_since_last_block(&self, client: Arc<dyn EngineClient>) -> Duration {
         if let Some(block_header) = client.block_header(BlockId::Latest) {
             // The block timestamp and minimum block time are specified in seconds.
@@ -93,9 +95,9 @@ impl TransitionHandler {
             let now = unix_now_millis();
 
             if now >= next_block_time {
-                // If the current time is already past the minimum time for the next block,
-                // just return the 1s keep alive interval.
-                DEFAULT_DURATION
+                // If the current time is already past the minimum time for the next block
+                // return 0 to signal readiness to create the next block.
+                Duration::from_secs(0)
             } else {
                 // Otherwise wait the exact number of milliseconds needed for the
                 // now >= next_block_time condition to be true.
@@ -139,19 +141,6 @@ impl IoHandler<()> for TransitionHandler {
                 }
             }
 
-            // Send Keygen transactions if necessary.
-            // Do this *before* calling on_transactions_imported to avoid starting
-            // a new block without giving it a chance to include Keygen transactions.
-            //self.engine.do_keygen();
-
-            // @todo Trigger block creation when we are not in the keygen phase yet,
-            //       but should be according to the epoch length settings.
-            self.engine.start_hbbft_epoch_if_next_phase();
-
-            // Transactions may have been submitted during creation of the last block, trigger the
-            // creation of a new block if the transaction threshold has been reached.
-            self.engine.on_transactions_imported();
-
             // Periodically allow messages received for future epochs to be processed.
             self.engine.replay_cached_messages();
 
@@ -164,6 +153,20 @@ impl IoHandler<()> for TransitionHandler {
             if let Some(ref weak) = *self.client.read() {
                 if let Some(c) = weak.upgrade() {
                     timer_duration = self.duration_remaining_since_last_block(c);
+
+                    // If the minimum block time has passed we are ready to trigger new blocks.
+                    if timer_duration == Duration::from_secs(0) {
+                        // Always create blocks if we are in the keygen phase.
+                        self.engine.start_hbbft_epoch_if_next_phase();
+
+                        // Transactions may have been submitted during creation of the last block, trigger the
+                        // creation of a new block if the transaction threshold has been reached.
+                        self.engine.on_transactions_imported();
+
+                        // Set timer duration to the default period (1s)
+                        timer_duration = DEFAULT_DURATION;
+                    }
+
                     // The duration should be at least 1ms and at most self.engine.params.minimum_block_time
                     timer_duration = max(timer_duration, Duration::from_millis(1));
                     timer_duration = min(
@@ -194,6 +197,7 @@ impl HoneyBadgerBFT {
             params,
             message_counter: RwLock::new(0),
             random_numbers: RwLock::new(BTreeMap::new()),
+            keygen_transaction_sender: RwLock::new(KeygenTransactionSender::new()),
         });
 
         if !engine.params.is_unit_test.unwrap_or(false) {
@@ -651,7 +655,10 @@ impl HoneyBadgerBFT {
                     if let Ok(is_pending) = is_pending_validator(&*client, &signer.address()) {
                         trace!(target: "engine", "is_pending_validator: {}", is_pending);
                         if is_pending {
-                            let _err = send_keygen_transactions(&*client, &self.signer);
+                            let _err = self
+								.keygen_transaction_sender
+								.write()
+								.send_keygen_transactions(&*client, &self.signer);
                             match _err {
                                 Ok(()) => {}
                                 Err(e) => {
