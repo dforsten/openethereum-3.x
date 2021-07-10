@@ -656,9 +656,9 @@ impl HoneyBadgerBFT {
                         trace!(target: "engine", "is_pending_validator: {}", is_pending);
                         if is_pending {
                             let _err = self
-								.keygen_transaction_sender
-								.write()
-								.send_keygen_transactions(&*client, &self.signer);
+                                .keygen_transaction_sender
+                                .write()
+                                .send_keygen_transactions(&*client, &self.signer);
                             match _err {
                                 Ok(()) => {}
                                 Err(e) => {

@@ -224,7 +224,6 @@ pub fn initialize_synckeygen(
     Ok(synckeygen)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
