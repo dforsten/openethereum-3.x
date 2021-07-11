@@ -138,13 +138,21 @@ impl KeygenTransactionSender {
         let mut acks = Vec::new();
         for v in vmap.keys().sorted() {
             acks.push(
-                match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest)? {
-                    Some(ack) => ack,
-                    None => {
-                        trace!(target:"engine", "could not retrieve part for {}", *v);
-                        return Err(CallError::ReturnValueInvalid);
-                    }
-                },
+				match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest) {
+					Ok(part_result) => {
+						match part_result {
+							    Some(ack) => ack,
+							    None => {
+							        trace!(target:"engine", "could not retrieve part for {}", *v);
+							        return Err(CallError::ReturnValueInvalid);
+							    }
+							}
+					}
+					Err(err) => {
+						error!(target:"engine", "could not retrieve part for {} call failed. Error: {:?}", *v, err);
+						return Err(err);
+					}
+				}
             );
         }
 
