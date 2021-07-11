@@ -79,13 +79,12 @@ struct TransitionHandler {
 const DEFAULT_DURATION: Duration = Duration::from_secs(1);
 
 impl TransitionHandler {
-    /// Returns the approximate time duration between the latest block and the minimum block time
-    /// (can be 0 if the minimum block time has passed) or the default time duration of 1s.
-    fn duration_remaining_since_last_block(&self, client: Arc<dyn EngineClient>) -> Duration {
+    /// Returns the approximate time duration between the latest block and the given offset
+    /// (is 0 if the offset was passed) or the default time duration of 1s.
+    fn block_time_until(&self, client: Arc<dyn EngineClient>, offset: u64) -> Duration {
         if let Some(block_header) = client.block_header(BlockId::Latest) {
             // The block timestamp and minimum block time are specified in seconds.
-            let next_block_time =
-                (block_header.timestamp() + self.engine.params.minimum_block_time) as u128 * 1000;
+            let next_block_time = (block_header.timestamp() + offset) as u128 * 1000;
 
             // We get the current time in milliseconds to calculate the exact timer duration.
             let now = unix_now_millis();
@@ -111,6 +110,16 @@ impl TransitionHandler {
             error!(target: "consensus", "Latest Block Header could not be obtained!");
             DEFAULT_DURATION
         }
+    }
+
+    // Returns the time remaining until minimum block time is passed or the default time duration of 1s.
+    fn min_block_time_remaining(&self, client: Arc<dyn EngineClient>) -> Duration {
+        self.block_time_until(client, self.engine.params.minimum_block_time)
+    }
+
+    // Returns the time remaining until maximum block time is passed or the default time duration of 1s.
+    fn max_block_time_remaining(&self, client: Arc<dyn EngineClient>) -> Duration {
+        self.block_time_until(client, self.engine.params.maximum_block_time)
     }
 }
 
@@ -144,7 +153,7 @@ impl IoHandler<()> for TransitionHandler {
             let mut timer_duration = DEFAULT_DURATION;
             if let Some(ref weak) = *self.client.read() {
                 if let Some(c) = weak.upgrade() {
-                    timer_duration = self.duration_remaining_since_last_block(c);
+                    timer_duration = self.min_block_time_remaining(c.clone());
 
                     // If the minimum block time has passed we are ready to trigger new blocks.
                     if timer_duration == Duration::from_secs(0) {
@@ -154,6 +163,11 @@ impl IoHandler<()> for TransitionHandler {
                         // Transactions may have been submitted during creation of the last block, trigger the
                         // creation of a new block if the transaction threshold has been reached.
                         self.engine.on_transactions_imported();
+
+                        // If the maximum block time has been reached we trigger a new block in any case.
+                        if self.max_block_time_remaining(c.clone()) == Duration::from_secs(0) {
+                            self.engine.start_hbbft_epoch(c);
+                        }
 
                         // Set timer duration to the default period (1s)
                         timer_duration = DEFAULT_DURATION;
