@@ -183,7 +183,7 @@ impl MinerService for TestMinerService {
         &self,
         _chain: &C,
         _pending: PendingTransaction,
-		false
+        _silently: bool,
     ) -> Result<(), transaction::Error> {
         // this function is no longer called directly from RPC
         unimplemented!();
