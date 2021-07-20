@@ -3,13 +3,13 @@ use std::{
     collections::BTreeMap,
     convert::TryFrom,
     ops::BitXor,
-    sync::{Arc, Weak},
+    sync::{atomic::AtomicBool, Arc, Weak},
     time::Duration,
 };
 
 use super::block_reward_hbbft::BlockRewardContract;
 use block::ExecutedBlock;
-use client::traits::{EngineClient, ForceUpdateSealing};
+use client::traits::{EngineClient, ForceUpdateSealing, TransactionRequest};
 use crypto::publickey::Signature;
 use engines::{
     default_system_or_code_call, signer::EngineSigner, Engine, EngineError, ForkChoice, Seal,
@@ -45,6 +45,10 @@ use super::{
     sealing::{self, RlpSig, Sealing},
     NodeId,
 };
+use engines::hbbft::contracts::validator_set::{
+    get_validator_available_since, send_tx_announce_availability, staking_by_mining_address,
+};
+use std::{ops::Deref, sync::atomic::Ordering};
 
 type TargetedMessage = hbbft::TargetedMessage<Message, NodeId>;
 
@@ -148,6 +152,10 @@ impl IoHandler<()> for TransitionHandler {
 
             // Periodically allow messages received for future epochs to be processed.
             self.engine.replay_cached_messages();
+
+            if let Err(e) = self.engine.do_availability_handling() {
+                error!(target: "engine", "Error during do_availability_handling: {}", e)
+            }
 
             // The client may not be registered yet on startup, we set the default duration.
             let mut timer_duration = DEFAULT_DURATION;
@@ -448,6 +456,7 @@ impl HoneyBadgerBFT {
     fn join_hbbft_epoch(&self) -> Result<(), EngineError> {
         let client = self.client_arc().ok_or(EngineError::RequiresClient)?;
         if self.is_syncing(&client) {
+            trace!(target: "consensus", "tried to join HBBFT Epoch, but still syncing.");
             return Ok(());
         }
         let step = self
@@ -543,6 +552,88 @@ impl HoneyBadgerBFT {
         Some(())
     }
 
+    fn do_availability_handling(&self) -> Result<(), String> {
+        // only try once on startup-
+        static HAS_SENT: AtomicBool = AtomicBool::new(false);
+
+        if !HAS_SENT.load(Ordering::SeqCst) {
+            // If we have no signer there is nothing for us to send.
+            let address = match self.signer.read().as_ref() {
+                Some(signer) => signer.address(),
+                None => {
+                    // warn!("Could not retrieve address for writing availability transaction.");
+                    return Ok(());
+                }
+            };
+
+            match self.client_arc() {
+                Some(client) => {
+                    if !self.is_syncing(&client) {
+                        let engine_client = client.deref();
+
+                        match staking_by_mining_address(engine_client, &address) {
+                            Ok(staking_address) => {
+                                if staking_address.is_zero() {
+                                    //TODO: here some fine handling can improve performance.
+                                    //with this implementation every node (validator or not)
+                                    //needs to query this state every block.
+                                    //trace!(target: "engine", "availability handling not a validator");
+                                    return Ok(());
+                                }
+                            }
+                            Err(call_error) => {
+                                error!(target: "engine", "unable to ask for corresponding staking address for given mining address: {:?}", call_error);
+                                let message = format!("unable to ask for corresponding staking address for given mining address: {:?}", call_error);
+                                return Err(message.into());
+                            }
+                        }
+
+                        match get_validator_available_since(engine_client, &address) {
+                            Ok(s) => {
+                                if s.is_zero() {
+                                    //let c : &dyn BlockChainClient = client.into();
+                                    match client.as_full_client() {
+                                        Some(c) => {
+                                            //debug!(target: "engine", "sending announce availability transaction");
+                                            info!("sending announce availability transaction");
+                                            match send_tx_announce_availability(c, &address) {
+                                                Ok(()) => {}
+                                                Err(call_error) => {
+                                                    //error!(target: "engine", "CallError during announce availability. {:?}", call_error);
+                                                    return Err(format!("CallError during announce availability. {:?}", call_error));
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            return Err(
+                                                "Unable to retrieve client.as_full_client()".into(),
+                                            );
+                                        }
+                                    }
+
+                                    HAS_SENT.store(true, Ordering::SeqCst);
+                                }
+                            }
+                            Err(e) => {
+                                //return Err(format!("Error trying to send availability check: {:?}", e));
+                                return Err(format!(
+                                    "Error trying to send availability check: {:?}",
+                                    e
+                                ));
+                            }
+                        }
+                    }
+                }
+                None => {
+                    //during bootup and shutdown, the ARC is not available. - it's fine, will send later
+                    return Ok(());
+                }
+            }
+        }
+
+        return Ok(());
+    }
+
     /// Returns true if we are in the keygen phase and a new key has been generated.
     fn do_keygen(&self) -> bool {
         match self.client_arc() {
@@ -577,11 +668,18 @@ impl HoneyBadgerBFT {
                 //       and call it periodically using timer events instead of on close block.
                 if let Some(signer) = self.signer.read().as_ref() {
                     if let Ok(is_pending) = is_pending_validator(&*client, &signer.address()) {
+                        trace!(target: "engine", "is_pending_validator: {}", is_pending);
                         if is_pending {
                             let _err = self
                                 .keygen_transaction_sender
                                 .write()
                                 .send_keygen_transactions(&*client, &self.signer);
+                            match _err {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    error!(target: "engine", "Error sending keygen transactions {:?}", e);
+                                }
+                            }
                         }
                     }
                 }
@@ -816,9 +914,12 @@ impl Engine<EthereumMachine> for HoneyBadgerBFT {
     fn on_close_block(&self, block: &mut ExecutedBlock) -> Result<(), Error> {
         self.check_for_epoch_change();
         if let Some(address) = self.params.block_reward_contract_address {
+            let header_number = block.header.number();
             let mut call = default_system_or_code_call(&self.machine, block);
+            let is_epoch_end = self.do_keygen();
+            trace!(target: "consensus", "calling reward function for block {} isEpochEnd? {} on address: {}", header_number,  is_epoch_end, address);
             let contract = BlockRewardContract::new_from_address(address);
-            let _total_reward = contract.reward(&mut call, self.do_keygen())?;
+            let _total_reward = contract.reward(&mut call, is_epoch_end)?;
         }
         Ok(())
     }

@@ -16,7 +16,13 @@ use engines::{
 use ethereum_types::U256;
 use itertools::Itertools;
 use parking_lot::RwLock;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 use types::ids::BlockId;
 
 pub struct KeygenTransactionSender {
@@ -49,18 +55,27 @@ impl KeygenTransactionSender {
         client: &dyn EngineClient,
         signer: &Arc<RwLock<Option<Box<dyn EngineSigner>>>>,
     ) -> Result<(), CallError> {
+        static LAST_PART_SENT: AtomicU64 = AtomicU64::new(0);
+        static LAST_ACKS_SENT: AtomicU64 = AtomicU64::new(0);
+
         // If we have no signer there is nothing for us to send.
         let address = match signer.read().as_ref() {
             Some(signer) => signer.address(),
-            None => return Err(CallError::ReturnValueInvalid),
+            None => {
+                trace!(target: "engine", "Could not send keygen transactions, because signer module could not be retrieved");
+                return Err(CallError::ReturnValueInvalid);
+            }
         };
-
+        trace!(target:"engine", "getting full client...");
         let full_client = client.as_full_client().ok_or(CallError::NotFullClient)?;
 
         // If the chain is still syncing, do not send Parts or Acks.
         if full_client.is_major_syncing() {
+            trace!(target:"engine", "skipping sending key gen transaction, because we are syncing");
             return Ok(());
         }
+
+        trace!(target:"engine", " get_validator_pubkeys...");
 
         let vmap = get_validator_pubkeys(&*client, BlockId::Latest, ValidatorType::Pending)?;
         let pub_keys: BTreeMap<_, _> = vmap
@@ -80,12 +95,16 @@ impl KeygenTransactionSender {
         };
 
         let upcoming_epoch = get_posdao_epoch(client, BlockId::Latest)? + 1;
+        trace!(target:"engine", "preparing to send PARTS for upcomming epoch: {}", upcoming_epoch);
+
         let cur_block = client
             .block_number(BlockId::Latest)
             .ok_or(CallError::ReturnValueInvalid)?;
 
         // Check if we already sent our part.
-        if self.part_threshold_reached(cur_block) && !has_part_of_address_data(client, address)? {
+        if (LAST_PART_SENT.load(Ordering::SeqCst) + 10 < cur_block)
+            && !has_part_of_address_data(client, address)?
+        {
             let serialized_part = match bincode::serialize(&part_data) {
                 Ok(part) => part,
                 Err(_) => return Err(CallError::ReturnValueInvalid),
@@ -111,22 +130,38 @@ impl KeygenTransactionSender {
             full_client
                 .transact_silently(part_transaction)
                 .map_err(|_| CallError::ReturnValueInvalid)?;
-            self.last_part_sent = cur_block;
+            LAST_PART_SENT.store(cur_block, Ordering::SeqCst);
         }
 
+        trace!(target:"engine", "checking for acks...");
         // Return if any Part is missing.
         let mut acks = Vec::new();
         for v in vmap.keys().sorted() {
             acks.push(
-                match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest)? {
-                    Some(ack) => ack,
-                    None => return Err(CallError::ReturnValueInvalid),
-                },
+				match part_of_address(&*client, *v, &vmap, &mut synckeygen, BlockId::Latest) {
+					Ok(part_result) => {
+						match part_result {
+							    Some(ack) => ack,
+							    None => {
+							        trace!(target:"engine", "could not retrieve part for {}", *v);
+							        return Err(CallError::ReturnValueInvalid);
+							    }
+							}
+					}
+					Err(err) => {
+						error!(target:"engine", "could not retrieve part for {} call failed. Error: {:?}", *v, err);
+						return Err(err);
+					}
+				}
             );
         }
 
+        trace!(target:"engine", "has_acks_of_address_data: {:?}", has_acks_of_address_data(client, address));
+
         // Now we are sure all parts are ready, let's check if we sent our Acks.
-        if self.acks_threshold_reached(cur_block) && !has_acks_of_address_data(client, address)? {
+        if (LAST_ACKS_SENT.load(Ordering::SeqCst) + 10 < cur_block)
+            && !has_acks_of_address_data(client, address)?
+        {
             let mut serialized_acks = Vec::new();
             let mut total_bytes_for_acks = 0;
 
@@ -156,7 +191,7 @@ impl KeygenTransactionSender {
             full_client
                 .transact_silently(acks_transaction)
                 .map_err(|_| CallError::ReturnValueInvalid)?;
-            self.last_acks_sent = cur_block;
+            LAST_ACKS_SENT.store(cur_block, Ordering::SeqCst);
         }
 
         Ok(())
