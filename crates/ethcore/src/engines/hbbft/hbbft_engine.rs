@@ -625,7 +625,8 @@ impl HoneyBadgerBFT {
                     }
                 }
                 None => {
-                    return Err("could not send availability announcement because client_arc could not be retrieved:".into());
+                    //during bootup and shutdown, the ARC is not available. - it's fine, will send later
+                    return Ok(());
                 }
             }
         }
